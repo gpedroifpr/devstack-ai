@@ -711,6 +711,8 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
               ],
+              const SizedBox(height: 16),
+              _buildBackendStatusBanner(),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -803,14 +805,46 @@ class _AuthScreenState extends State<AuthScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        Text(
-          _databaseService.isUsingFirebase
-              ? 'Cadastro conectado ao Firebase Auth.'
-              : 'Cadastro local para protótipo. Preencha o .env para ativar Firebase Auth.',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-        ),
       ],
+    );
+  }
+
+  Widget _buildBackendStatusBanner() {
+    final isConnected = _databaseService.isUsingFirebase;
+    final color = isConnected ? Colors.greenAccent : Colors.orangeAccent;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isConnected
+                ? Icons.cloud_done_rounded
+                : Icons.warning_amber_rounded,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _databaseService.backendStatusMessage,
+              style: TextStyle(
+                color: Colors.grey.shade200,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

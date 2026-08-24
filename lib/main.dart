@@ -409,6 +409,17 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       _handlePastedImageAttachment,
     );
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedIndex = 0;
+        _selectedPost = null;
+        _selectedCommunity = null;
+        _isShowingSearch = false;
+        _isShowingNotifications = false;
+      });
+    });
+
     _initializeData();
   }
 

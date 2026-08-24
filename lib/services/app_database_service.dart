@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'firebase_backend_service.dart';
 import 'local_database_service.dart';
 
@@ -8,6 +10,19 @@ class AppDatabaseService {
   final FirebaseBackendService _firebaseService = FirebaseBackendService();
 
   bool get isUsingFirebase => FirebaseBackendService.isInitialized;
+
+  String get backendStatusMessage {
+    if (isUsingFirebase) return 'Cadastro conectado ao Firebase Auth.';
+
+    final error = FirebaseBackendService.initializationError;
+    if (kReleaseMode) {
+      return error == null
+          ? 'Firebase não foi configurado neste build publicado.'
+          : 'Firebase não iniciou neste build: $error';
+    }
+
+    return 'Cadastro local para protótipo. Configure o .env para ativar Firebase Auth.';
+  }
 
   Future<LocalAuthUser?> loadCurrentUser() async {
     if (isUsingFirebase) {
@@ -30,6 +45,10 @@ class AppDatabaseService {
       );
     }
 
+    if (kReleaseMode) {
+      return Future.value(AuthResult.failure(_firebaseMissingMessage()));
+    }
+
     return _localService.registerUser(
       name: name,
       email: email,
@@ -40,6 +59,10 @@ class AppDatabaseService {
   Future<AuthResult> signIn({required String email, required String password}) {
     if (isUsingFirebase) {
       return _firebaseService.signIn(email: email, password: password);
+    }
+
+    if (kReleaseMode) {
+      return Future.value(AuthResult.failure(_firebaseMissingMessage()));
     }
 
     return _localService.signIn(email: email, password: password);
@@ -258,5 +281,14 @@ class AppDatabaseService {
         // O comentário fica salvo localmente se o Firestore negar a escrita.
       }
     }
+  }
+
+  String _firebaseMissingMessage() {
+    final details = FirebaseBackendService.initializationError;
+    if (details == null || details.isEmpty) {
+      return 'Firebase não foi configurado neste build publicado. Gere o build usando scripts/build_web_from_env.ps1 e publique novamente.';
+    }
+
+    return 'Firebase não iniciou neste build publicado: $details';
   }
 }

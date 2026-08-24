@@ -365,7 +365,27 @@ class FirebaseBackendService {
   }
 
   static String _env(String key) {
-    return (dotenv.env[key] ?? '').trim();
+    final dotenvValue = (dotenv.env[key] ?? '').trim();
+    if (dotenvValue.isNotEmpty) return dotenvValue;
+
+    switch (key) {
+      case 'FIREBASE_API_KEY':
+        return const String.fromEnvironment('FIREBASE_API_KEY').trim();
+      case 'FIREBASE_APP_ID':
+        return const String.fromEnvironment('FIREBASE_APP_ID').trim();
+      case 'FIREBASE_MESSAGING_SENDER_ID':
+        return const String.fromEnvironment(
+          'FIREBASE_MESSAGING_SENDER_ID',
+        ).trim();
+      case 'FIREBASE_PROJECT_ID':
+        return const String.fromEnvironment('FIREBASE_PROJECT_ID').trim();
+      case 'FIREBASE_AUTH_DOMAIN':
+        return const String.fromEnvironment('FIREBASE_AUTH_DOMAIN').trim();
+      case 'FIREBASE_STORAGE_BUCKET':
+        return const String.fromEnvironment('FIREBASE_STORAGE_BUCKET').trim();
+      default:
+        return '';
+    }
   }
 
   String _nameFromEmail(String? email) {
