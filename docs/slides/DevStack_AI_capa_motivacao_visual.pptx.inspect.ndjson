@@ -1,0 +1,21 @@
+{"kind":"deck","id":"pr/kroaa4","name":"Deck"}
+{"kind":"layout","layoutId":"ab48e24a-c33a-44b0-b9b4-f3a611b6bf4f","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"11d69638-f951-4a6b-88b7-200c657f7363","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/ttg8b9","slide":1,"title":"DevStack","textShapes":9}
+{"kind":"shape","id":"sh/rulkfmpo","slide":1,"bbox":[512,78,666,480]}
+{"kind":"shape","id":"sh/qtc36h83","slide":1,"bbox":[54,70,434,510]}
+{"kind":"textbox","id":"sh/5s32dc7i","slide":1,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[92,112,246,54]}
+{"kind":"textbox","id":"sh/4rul47qx","slide":1,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[312,112,70,54]}
+{"kind":"textbox","id":"sh/3qlkb2pc","slide":1,"text":"projeto visual","textPreview":"projeto visual","textChars":14,"textLines":1,"bbox":[92,174,260,30]}
+{"kind":"textbox","id":"sh/ipc32x87","slide":1,"text":"Protótipo inicial como fonte de motivação","textPreview":"Protótipo inicial como fonte de motivação","textChars":41,"textLines":1,"bbox":[92,242,344,146]}
+{"kind":"textbox","id":"sh/ho329s7m","slide":1,"text":"Referência usada para orientar a identidade visual, a navegação mobile e a presença do botão de IA no aplicativo.","textPreview":"Referência usada para orientar a identidade visual, a navegação mobile e a presença do botão de IA no aplicativo.","textChars":113,"textLines":1,"bbox":[94,414,338,84]}
+{"kind":"shape","id":"sh/g3al0nq1","slide":1,"bbox":[92,528,128,34]}
+{"kind":"textbox","id":"sh/yd0ritcb","slide":1,"text":"Mobile first","textPreview":"Mobile first","textChars":12,"textLines":1,"bbox":[92,535,128,18]}
+{"kind":"shape","id":"sh/ze98rydw","slide":1,"bbox":[236,528,130,34]}
+{"kind":"textbox","id":"sh/0fi9k3u1","slide":1,"text":"Tema escuro","textPreview":"Tema escuro","textChars":11,"textLines":1,"bbox":[236,535,130,18]}
+{"kind":"shape","id":"sh/lgbqt8vm","slide":1,"bbox":[92,578,128,34]}
+{"kind":"textbox","id":"sh/qp0retwz","slide":1,"text":"IA no fluxo","textPreview":"IA no fluxo","textChars":11,"textLines":1,"bbox":[92,585,128,18]}
+{"kind":"shape","id":"sh/bq98nydk","slide":1,"bbox":[806,610,256,42]}
+{"kind":"textbox","id":"sh/cbi9g3u5","slide":1,"text":"Referência visual do projeto","textPreview":"Referência visual do projeto","textChars":28,"textLines":1,"bbox":[828,620,212,20]}
+{"kind":"image","id":"im/18napk7a","slide":1,"name":"","geometry":"roundRect","alt":"Protótipo inicial do DevStack AI criado no Canva","bbox":[540,106,610,424]}
+{"kind":"notes","id":"nt/ttg8b9","slide":1,"text":"Use este slide para abrir a parte de prototipação visual.\nExplique que o material antigo não é a versão final, mas serviu como motivação: tema escuro, cards, navegação mobile e presença do Ask AI.\n\n[Sources]\nC:\\Users\\pedro\\Documents\\Codex\\2026-06-20\\boa\\presentation-capa-motivacao\\assets\\prototipo-inicial-limpo.png"}

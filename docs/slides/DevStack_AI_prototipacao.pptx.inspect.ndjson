@@ -1,0 +1,271 @@
+{"kind":"deck","id":"pr/0dkaqb","name":"Deck"}
+{"kind":"layout","layoutId":"98eff75d-093d-4c74-9dc6-ebfab59eb30d","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"5ea925a1-6348-4668-9703-dc48c24fa929","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/qqusd8","slide":1,"title":"Prototipação da interface","textShapes":10}
+{"kind":"shape","id":"sh/ozmxcfuh","slide":1,"bbox":[64,58,1152,604]}
+{"kind":"textbox","id":"sh/3ytg3adw","slide":1,"text":"Prototipação da interface","textPreview":"Prototipação da interface","textChars":25,"textLines":1,"bbox":[106,118,650,74]}
+{"kind":"textbox","id":"sh/2xkfa5cr","slide":1,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[106,204,270,60]}
+{"kind":"textbox","id":"sh/1wby10v6","slide":1,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[354,204,80,60]}
+{"kind":"textbox","id":"sh/gv2x8vul","slide":1,"text":"Como o app foi pensado visualmente antes e durante a implementação: telas, fluxo, componentes e responsividade.","textPreview":"Como o app foi pensado visualmente antes e durante a implementação: telas, fluxo, componentes e responsividade.","textChars":111,"textLines":1,"bbox":[106,306,620,92]}
+{"kind":"shape","id":"sh/futgzqd0","slide":1,"bbox":[106,444,156,36]}
+{"kind":"textbox","id":"sh/etkf6lcf","slide":1,"text":"Fluxo de telas","textPreview":"Fluxo de telas","textChars":14,"textLines":1,"bbox":[106,451,156,20]}
+{"kind":"shape","id":"sh/tsbyx0vu","slide":1,"bbox":[280,444,136,36]}
+{"kind":"textbox","id":"sh/s72x4vu9","slide":1,"text":"Wireframes","textPreview":"Wireframes","textChars":10,"textLines":1,"bbox":[280,451,136,20]}
+{"kind":"shape","id":"sh/694bq187","slide":1,"bbox":[434,444,104,36]}
+{"kind":"textbox","id":"sh/radcz6ps","slide":1,"text":"UI Kit","textPreview":"UI Kit","textChars":6,"textLines":1,"bbox":[434,451,104,20]}
+{"kind":"shape","id":"sh/sbmtsbqd","slide":1,"bbox":[556,444,144,36]}
+{"kind":"textbox","id":"sh/tcvu1g7y","slide":1,"text":"Responsivo","textPreview":"Responsivo","textChars":10,"textLines":1,"bbox":[556,451,144,20]}
+{"kind":"shape","id":"sh/ilkbm18b","slide":1,"bbox":[750,116,410,354]}
+{"kind":"shape","id":"sh/472tobq1","slide":1,"bbox":[806,510,300,34]}
+{"kind":"textbox","id":"sh/58vuxg7m","slide":1,"text":"Print real usado como alta fidelidade","textPreview":"Print real usado como alta fidelidade","textChars":37,"textLines":1,"bbox":[830,518,252,16]}
+{"kind":"textbox","id":"sh/uhkbih8z","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"image","id":"im/wzetgvm9","slide":1,"name":"","geometry":"roundRect","alt":"Tela real de boas-vindas do DevStack AI","bbox":[770,136,370,314]}
+{"kind":"notes","id":"nt/qqusd8","slide":1,"text":"Abra explicando que esta apresentação é sobre a prototipação, não apenas sobre código.\nDiga que o protótipo serviu para decidir telas, navegação e comportamento antes da demonstração funcional.\n\n[Sources]\nProjeto DevStack AI e screenshots fornecidos durante o desenvolvimento."}
+{"kind":"slide","id":"sl/wk4gc0","slide":2,"title":"DevStack","textShapes":17}
+{"kind":"textbox","id":"sh/uh03adwb","slide":2,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/hkbm5sv2","slide":2,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/wj2lcneh","slide":2,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/7u94zidk","slide":2,"text":"O protótipo definiu o que o usuário deveria conseguir fazer","textPreview":"O protótipo definiu o que o usuário deveria conseguir fazer","textChars":59,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/mt036dwz","slide":2,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/9wrm18vq","slide":2,"text":"Antes de implementar, a interface precisava responder a uma pergunta: qual é a jornada principal de estudo?","textPreview":"Antes de implementar, a interface precisava responder a uma pergunta: qual é a jornada principal de estudo?","textChars":107,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/8vil8ne5","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/zqp4vydo","slide":2,"bbox":[104,356,204,124]}
+{"kind":"textbox","id":"sh/ypg32tw3","slide":2,"text":"Entrar","textPreview":"Entrar","textChars":6,"textLines":1,"bbox":[126,380,160,28]}
+{"kind":"textbox","id":"sh/83udkr61","slide":2,"text":"Criar conta ou explorar sem cadastro.","textPreview":"Criar conta ou explorar sem cadastro.","textChars":37,"textLines":1,"bbox":[126,424,154,38]}
+{"kind":"textbox","id":"sh/t43edwnm","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[324,388,54,48]}
+{"kind":"shape","id":"sh/61cvi1ob","slide":2,"bbox":[374,356,204,124]}
+{"kind":"textbox","id":"sh/72lwb65g","slide":2,"text":"Encontrar","textPreview":"Encontrar","textChars":9,"textLines":1,"bbox":[396,380,160,28]}
+{"kind":"textbox","id":"sh/kzudgr65","slide":2,"text":"Ler posts, tags, comunidades e dúvidas.","textPreview":"Ler posts, tags, comunidades e dúvidas.","textChars":39,"textLines":1,"bbox":[396,424,154,38]}
+{"kind":"textbox","id":"sh/l03e9wnq","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[594,388,54,48]}
+{"kind":"shape","id":"sh/yxsvehoz","slide":2,"bbox":[644,356,204,124]}
+{"kind":"textbox","id":"sh/jylc7m5k","slide":2,"text":"Publicar","textPreview":"Publicar","textChars":8,"textLines":1,"bbox":[666,380,160,28]}
+{"kind":"textbox","id":"sh/4vedsv69","slide":2,"text":"Registrar uma dúvida com título, descrição e código.","textPreview":"Registrar uma dúvida com título, descrição e código.","textChars":52,"textLines":1,"bbox":[666,424,154,38]}
+{"kind":"textbox","id":"sh/pw7elgnu","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[864,388,54,48]}
+{"kind":"shape","id":"sh/ds3e5gfy","slide":2,"bbox":[914,356,204,124]}
+{"kind":"textbox","id":"sh/crudcbyd","slide":2,"text":"Resolver","textPreview":"Resolver","textChars":8,"textLines":1,"bbox":[936,380,160,28]}
+{"kind":"textbox","id":"sh/bq1w36xs","slide":2,"text":"Usar a IA e comentários para avançar no problema.","textPreview":"Usar a IA e comentários para avançar no problema.","textChars":49,"textLines":1,"bbox":[936,424,154,38]}
+{"kind":"notes","id":"nt/wk4gc0","slide":2,"text":"Este slide é a lógica do protótipo: ele começa pela jornada do usuário.\nMostre que as telas não foram criadas soltas; elas respondem a etapas do uso.\n\n[Sources]\nFluxos implementados em auth_screen.dart e main.dart."}
+{"kind":"slide","id":"sl/6o0fqd","slide":3,"title":"DevStack","textShapes":16}
+{"kind":"textbox","id":"sh/21cbml4v","slide":3,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/p43uxgn6","slide":3,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/o3utobm1","slide":3,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/fe1cr654","slide":3,"text":"A navegação foi desenhada como um fluxo simples","textPreview":"A navegação foi desenhada como um fluxo simples","textChars":47,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/edsbi14j","slide":3,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/103utgna","slide":3,"text":"O protótipo organiza o app em poucas áreas para o usuário não se perder durante o estudo.","textPreview":"O protótipo organiza o app em poucas áreas para o usuário não se perder durante o estudo.","textChars":89,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/gzutkbmp","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/za5c3q5o","slide":3,"bbox":[92,340,168,92]}
+{"kind":"textbox","id":"sh/y9wvu543","slide":3,"text":"Boas-vindas","textPreview":"Boas-vindas","textChars":11,"textLines":1,"bbox":[104,370,144,28]}
+{"kind":"textbox","id":"sh/0ze1s7m5","slide":3,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[266,365,54,40]}
+{"kind":"shape","id":"sh/l0ni1c3q","slide":3,"bbox":[326,340,168,92]}
+{"kind":"textbox","id":"sh/ydcjqh4z","slide":3,"text":"Home / Feed","textPreview":"Home / Feed","textChars":11,"textLines":1,"bbox":[338,370,144,28]}
+{"kind":"textbox","id":"sh/ze50z2lk","slide":3,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[500,365,54,40]}
+{"kind":"shape","id":"sh/cbu1o7m9","slide":3,"bbox":[560,340,168,92]}
+{"kind":"textbox","id":"sh/dc3ixc3u","slide":3,"text":"Comunidades","textPreview":"Comunidades","textChars":11,"textLines":1,"bbox":[572,370,144,28]}
+{"kind":"textbox","id":"sh/q9cjmx43","slide":3,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[734,365,54,40]}
+{"kind":"shape","id":"sh/bal0v2lo","slide":3,"bbox":[794,340,168,92]}
+{"kind":"textbox","id":"sh/o7u1knmx","slide":3,"text":"Perfil","textPreview":"Perfil","textChars":6,"textLines":1,"bbox":[806,370,144,28]}
+{"kind":"textbox","id":"sh/p83its3i","slide":3,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[968,365,54,40]}
+{"kind":"shape","id":"sh/5sbq1kra","slide":3,"bbox":[1028,340,168,92]}
+{"kind":"textbox","id":"sh/4r2p8fap","slide":3,"text":"IA","textPreview":"IA","textChars":2,"textLines":1,"bbox":[1040,370,144,28]}
+{"kind":"textbox","id":"sh/jqt8zu94","slide":3,"text":"Decisão de prototipação: manter a navegação principal sempre visível na base da tela.","textPreview":"Decisão de prototipação: manter a navegação principal sempre visível na base da tela.","textChars":85,"textLines":1,"bbox":[164,512,900,42]}
+{"kind":"notes","id":"nt/6o0fqd","slide":3,"text":"Explique como se fosse um user flow de Figma.\nDestaque que a navegação inferior veio para deixar as áreas principais sempre acessíveis.\n\n[Sources]\nEstrutura de navegação implementada em main.dart."}
+{"kind":"slide","id":"sl/tlqiuo","slide":4,"title":"DevStack","textShapes":9}
+{"kind":"textbox","id":"sh/gbyxgz2p","slide":4,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/fapg7ul4","slide":4,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/e9gfepkz","slide":4,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/t87y5k3e","slide":4,"text":"O wireframe virou tela real durante a prototipação","textPreview":"O wireframe virou tela real durante a prototipação","textChars":50,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/snyxcf2t","slide":4,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/rmpg3ul8","slide":4,"text":"A estrutura começou simples e depois recebeu identidade visual, espaçamento e conteúdo.","textPreview":"A estrutura começou simples e depois recebeu identidade visual, espaçamento e conteúdo.","textChars":87,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/6lwfapkn","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"textbox","id":"sh/d4ryho3i","slide":4,"text":"Baixa fidelidade","textPreview":"Baixa fidelidade","textChars":16,"textLines":1,"bbox":[118,320,280,30]}
+{"kind":"shape","id":"sh/c3ixoj2x","slide":4,"bbox":[118,370,258,196]}
+{"kind":"textbox","id":"sh/ydgf6dkn","slide":4,"text":"Welcome","textPreview":"Welcome","textChars":7,"textLines":1,"bbox":[134,384,226,24]}
+{"kind":"shape","id":"sh/zepgfil8","slide":4,"bbox":[134,422,226,18]}
+{"kind":"shape","id":"sh/kfyx8n2t","slide":4,"bbox":[134,454,226,46]}
+{"kind":"shape","id":"sh/lgryh83e","slide":4,"bbox":[134,518,226,28]}
+{"kind":"textbox","id":"sh/a9gf2tkr","slide":4,"text":"Alta fidelidade / implementação","textPreview":"Alta fidelidade / implementação","textChars":31,"textLines":1,"bbox":[510,320,480,30]}
+{"kind":"shape","id":"sh/bapgbylc","slide":4,"bbox":[504,362,600,236]}
+{"kind":"image","id":"im/3epwzqt8","slide":4,"name":"","geometry":"roundRect","alt":"Comparação com tela real de boas-vindas","bbox":[522,382,564,196]}
+{"kind":"notes","id":"nt/tlqiuo","slide":4,"text":"Aqui vocês podem falar literalmente como no Figma: primeiro estrutura, depois visual.\nA imagem real mostra que o protótipo virou uma tela navegável do app.\n\n[Sources]\nScreenshot fornecido pelo autor; tela implementada em auth_screen.dart."}
+{"kind":"slide","id":"sl/1614a5","slide":5,"title":"DevStack","textShapes":14}
+{"kind":"textbox","id":"sh/ehovudgz","slide":5,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/1kfupszq","slide":5,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/0j6dwny5","slide":5,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/rexcjyh8","slide":5,"text":"O sistema visual definiu consistência entre as telas","textPreview":"O sistema visual definiu consistência entre as telas","textChars":52,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/qtobqtg3","slide":5,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/dgful8ze","slide":5,"text":"A prototipação também organizou cores, tipografia, botões, cards e estados de destaque.","textPreview":"A prototipação também organizou cores, tipografia, botões, cards e estados de destaque.","textChars":87,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/cf6ts3yt","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/bahcv2hs","slide":5,"bbox":[102,318,92,92]}
+{"kind":"textbox","id":"sh/ap8v2xg7","slide":5,"text":"Fundo","textPreview":"Fundo","textChars":5,"textLines":1,"bbox":[94,430,110,22]}
+{"kind":"shape","id":"sh/sfuhc3mp","slide":5,"bbox":[250,318,92,92]}
+{"kind":"textbox","id":"sh/dg3il8na","slide":5,"text":"Card","textPreview":"Card","textChars":4,"textLines":1,"bbox":[242,430,110,22]}
+{"kind":"shape","id":"sh/qtczatoj","slide":5,"bbox":[398,318,92,92]}
+{"kind":"textbox","id":"sh/rul0jy54","slide":5,"text":"Ação","textPreview":"Ação","textChars":4,"textLines":1,"bbox":[390,430,110,22]}
+{"kind":"shape","id":"sh/4rah8j6d","slide":5,"bbox":[546,318,92,92]}
+{"kind":"textbox","id":"sh/5sjihony","slide":5,"text":"Sucesso","textPreview":"Sucesso","textChars":7,"textLines":1,"bbox":[538,430,110,22]}
+{"kind":"shape","id":"sh/ipsz69on","slide":5,"bbox":[694,318,92,92]}
+{"kind":"textbox","id":"sh/3q10fe5s","slide":5,"text":"Alerta","textPreview":"Alerta","textChars":6,"textLines":1,"bbox":[686,430,110,22]}
+{"kind":"shape","id":"sh/wnah4j6h","slide":5,"bbox":[852,306,282,176]}
+{"kind":"textbox","id":"sh/hojidon2","slide":5,"text":"Componentes","textPreview":"Componentes","textChars":11,"textLines":1,"bbox":[884,334,220,28]}
+{"kind":"shape","id":"sh/x8r6lgbe","slide":5,"bbox":[884,378,210,2]}
+{"kind":"textbox","id":"sh/c7ipsbut","slide":5,"text":"Botões • Cards • Tags • Inputs","textPreview":"Botões • Cards • Tags • Inputs","textChars":30,"textLines":1,"bbox":[884,404,220,26]}
+{"kind":"textbox","id":"sh/b69oj6to","slide":5,"text":"Mesmo padrão visual em feed, perfil, comunidades e IA.","textPreview":"Mesmo padrão visual em feed, perfil, comunidades e IA.","textChars":54,"textLines":1,"bbox":[884,444,220,34]}
+{"kind":"notes","id":"nt/1614a5","slide":5,"text":"Explique que design system não é só estética; ele evita telas com aparência diferente entre si.\nCite a cor ciano como marca de ação principal.\n\n[Sources]\nCores e componentes definidos em main.dart e auth_screen.dart."}
+{"kind":"slide","id":"sl/ya9oaa","slide":6,"title":"DevStack","textShapes":10}
+{"kind":"textbox","id":"sh/q5cv2hkb","slide":6,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/d8nedwjm","slide":6,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/c7ed4r2h","slide":6,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/3ilw7mlk","slide":6,"text":"A alta fidelidade aproximou o protótipo da experiência final","textPreview":"A alta fidelidade aproximou o protótipo da experiência final","textChars":60,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/2hcvyhkz","slide":6,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/p43e9c3q","slide":6,"text":"Depois da estrutura, o foco passou para contraste, espaçamento e leitura.","textPreview":"Depois da estrutura, o foco passou para contraste, espaçamento e leitura.","textChars":73,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/o3ud0725","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/edsvuxk3","slide":6,"bbox":[724,326,10,10]}
+{"kind":"textbox","id":"sh/g3ipgbm9","slide":6,"text":"Tema escuro para reduzir ruído visual.","textPreview":"Tema escuro para reduzir ruído visual.","textChars":38,"textLines":1,"bbox":[754,314,390,44]}
+{"kind":"shape","id":"sh/h4r6pgnu","slide":6,"bbox":[724,384,10,10]}
+{"kind":"textbox","id":"sh/u10nu143","slide":6,"text":"Cards para agrupar informação sem excesso.","textPreview":"Cards para agrupar informação sem excesso.","textChars":42,"textLines":1,"bbox":[754,372,390,44]}
+{"kind":"shape","id":"sh/v29on65o","slide":6,"bbox":[724,442,10,10]}
+{"kind":"textbox","id":"sh/8zi5sbmx","slide":6,"text":"Ações principais destacadas em ciano.","textPreview":"Ações principais destacadas em ciano.","textChars":37,"textLines":1,"bbox":[754,430,390,44]}
+{"kind":"shape","id":"sh/t0r6lgni","slide":6,"bbox":[724,500,10,10]}
+{"kind":"textbox","id":"sh/mx0nq147","slide":6,"text":"Textos curtos para facilitar apresentação e uso.","textPreview":"Textos curtos para facilitar apresentação e uso.","textChars":48,"textLines":1,"bbox":[754,488,390,44]}
+{"kind":"image","id":"im/qh0r2tgf","slide":6,"name":"","geometry":"roundRect","alt":"Tela de boas-vindas do DevStack AI","bbox":[84,286,560,326]}
+{"kind":"notes","id":"nt/ya9oaa","slide":6,"text":"Mostre que a tela final não surgiu pronta; ela é resultado de organização visual.\nAponte para a imagem como evidência de alta fidelidade.\n\n[Sources]\nScreenshot fornecido pelo autor; implementação em auth_screen.dart."}
+{"kind":"slide","id":"sl/z3xx9k","slide":7,"title":"DevStack","textShapes":11}
+{"kind":"textbox","id":"sh/7q1kjm58","slide":7,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/8ralcrmt","slide":7,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/9cj2lwne","slide":7,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/yls36x4r","slide":7,"text":"A responsividade foi prevista no protótipo e aplicada no Flutter","textPreview":"A responsividade foi prevista no protótipo e aplicada no Flutter","textChars":64,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/zm1kf25c","slide":7,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/knal87mx","slide":7,"text":"O mesmo conteúdo precisava funcionar no notebook e no celular.","textPreview":"O mesmo conteúdo precisava funcionar no notebook e no celular.","textChars":62,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/loj2hcn2","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/ihc3i14v","slide":7,"bbox":[98,326,454,236]}
+{"kind":"shape","id":"sh/ze58jitk","slide":7,"bbox":[590,306,144,278]}
+{"kind":"shape","id":"sh/ydw7axsz","slide":7,"bbox":[612,348,100,26]}
+{"kind":"shape","id":"sh/lg7qlsba","slide":7,"bbox":[612,396,100,58]}
+{"kind":"shape","id":"sh/0fepcnap","slide":7,"bbox":[612,478,100,34]}
+{"kind":"textbox","id":"sh/nip8n2tg","slide":7,"text":"Mobile","textPreview":"Mobile","textChars":6,"textLines":1,"bbox":[582,604,160,24]}
+{"kind":"shape","id":"sh/mhg7exsv","slide":7,"bbox":[790,348,10,10]}
+{"kind":"textbox","id":"sh/9k7qpcbm","slide":7,"text":"LayoutBuilder adapta a tela inicial.","textPreview":"LayoutBuilder adapta a tela inicial.","textChars":36,"textLines":1,"bbox":[820,336,350,44]}
+{"kind":"shape","id":"sh/8jypg7a1","slide":7,"bbox":[790,402,10,10]}
+{"kind":"textbox","id":"sh/v6p8rmtc","slide":7,"text":"Wrap quebra chips e ações.","textPreview":"Wrap quebra chips e ações.","textChars":26,"textLines":1,"bbox":[820,390,350,44]}
+{"kind":"shape","id":"sh/alg7ihs7","slide":7,"bbox":[790,456,10,10]}
+{"kind":"textbox","id":"sh/6d4j65gb","slide":7,"text":"MediaQuery limita largura do chat.","textPreview":"MediaQuery limita largura do chat.","textChars":34,"textLines":1,"bbox":[820,444,350,44]}
+{"kind":"shape","id":"sh/redkzahw","slide":7,"bbox":[790,510,10,10]}
+{"kind":"textbox","id":"sh/sfm18fyh","slide":7,"text":"Scroll e SafeArea evitam corte de conteúdo.","textPreview":"Scroll e SafeArea evitam corte de conteúdo.","textChars":43,"textLines":1,"bbox":[820,498,350,44]}
+{"kind":"image","id":"im/ydsbydsj","slide":7,"name":"","geometry":"roundRect","alt":"Tela real desktop do DevStack AI","bbox":[116,344,418,200]}
+{"kind":"notes","id":"nt/z3xx9k","slide":7,"text":"Este slide conecta prototipação com implementação.\nExplique que no Flutter a responsividade foi resolvida com widgets, não com CSS tradicional.\n\n[Sources]\nUso de LayoutBuilder em auth_screen.dart; MediaQuery, Wrap, SafeArea e SingleChildScrollView em main.dart."}
+{"kind":"slide","id":"sl/fd39xn","slide":8,"title":"DevStack","textShapes":16}
+{"kind":"textbox","id":"sh/y98nyp47","slide":8,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/lcz6t43y","slide":8,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/0bq50zmd","slide":8,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/b6x4nulg","slide":8,"text":"O protótipo também guiou estados e interações","textPreview":"O protótipo também guiou estados e interações","textChars":45,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/q5onup4v","slide":8,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/d8zmp43m","slide":8,"text":"Além da tela parada, foram planejadas respostas visuais para ações do usuário.","textPreview":"Além da tela parada, foram planejadas respostas visuais para ações do usuário.","textChars":78,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/c765wzm1","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/3ix4ja5k","slide":8,"bbox":[116,306,84,44]}
+{"kind":"textbox","id":"sh/2honq54z","slide":8,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[116,313,84,22]}
+{"kind":"textbox","id":"sh/obylcfq9","slide":8,"text":"Sem conta","textPreview":"Sem conta","textChars":9,"textLines":1,"bbox":[234,304,250,28]}
+{"kind":"textbox","id":"sh/pc7mlkru","slide":8,"text":"entrada/cadastro sem bloquear exploração","textPreview":"entrada/cadastro sem bloquear exploração","textChars":40,"textLines":1,"bbox":[234,340,360,30]}
+{"kind":"shape","id":"sh/29w3a583","slide":8,"bbox":[116,384,84,44]}
+{"kind":"textbox","id":"sh/na54ja9o","slide":8,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[116,391,84,22]}
+{"kind":"textbox","id":"sh/07el8vqx","slide":8,"text":"Comentários","textPreview":"Comentários","textChars":11,"textLines":1,"bbox":[234,382,250,28]}
+{"kind":"textbox","id":"sh/18nmh0ri","slide":8,"text":"botões maiores e resposta mais clara","textPreview":"botões maiores e resposta mais clara","textChars":36,"textLines":1,"bbox":[234,418,360,30]}
+{"kind":"shape","id":"sh/e5w365s7","slide":8,"bbox":[116,462,84,44]}
+{"kind":"textbox","id":"sh/f654fq9s","slide":8,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[116,469,84,22]}
+{"kind":"textbox","id":"sh/k3i5kzqh","slide":8,"text":"IA","textPreview":"IA","textChars":2,"textLines":1,"bbox":[234,460,250,28]}
+{"kind":"textbox","id":"sh/l4rmd4r2","slide":8,"text":"campo antes de enviar e estados de erro visíveis","textPreview":"campo antes de enviar e estados de erro visíveis","textChars":48,"textLines":1,"bbox":[234,496,360,30]}
+{"kind":"shape","id":"sh/tknmxkj6","slide":8,"bbox":[652,314,500,224]}
+{"kind":"textbox","id":"sh/7i54vu10","slide":8,"text":"Print real de estado do chat","textPreview":"Print real de estado do chat","textChars":28,"textLines":1,"bbox":[726,552,360,24]}
+{"kind":"image","id":"im/b6t8ji1w","slide":8,"name":"","geometry":"roundRect","alt":"Tela real do chat da IA com estado de resposta","bbox":[670,332,464,188]}
+{"kind":"notes","id":"nt/fd39xn","slide":8,"text":"Mostre que prototipação também inclui comportamento, não só aparência.\nO print real ajuda a explicar que até estados de erro e tempo de resposta precisam de desenho.\n\n[Sources]\nScreenshot fornecido pelo autor; estados e interações implementados em main.dart e auth_screen.dart."}
+{"kind":"slide","id":"sl/e2uuw9","slide":9,"title":"DevStack","textShapes":9}
+{"kind":"textbox","id":"sh/tkr29cvq","slide":9,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/6x03exwz","slide":9,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/ry9k72dk","slide":9,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/4vylc7e9","slide":9,"text":"O protótipo foi validado por iteração","textPreview":"O protótipo foi validado por iteração","textChars":37,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/5w725cve","slide":9,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/itg3axw3","slide":9,"text":"A interface evoluiu a partir de problemas percebidos durante o uso e testes no navegador.","textPreview":"A interface evoluiu a partir de problemas percebidos durante o uso e testes no navegador.","textChars":89,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/jupk32do","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"textbox","id":"sh/wryl8nex","slide":9,"text":"Primeira direção visual","textPreview":"Primeira direção visual","textChars":23,"textLines":1,"bbox":[112,320,400,32]}
+{"kind":"shape","id":"sh/hs721svi","slide":9,"bbox":[110,366,456,176]}
+{"kind":"textbox","id":"sh/4jmlc3u9","slide":9,"text":"Após iteração","textPreview":"Após iteração","textChars":13,"textLines":1,"bbox":[704,320,300,32]}
+{"kind":"shape","id":"sh/3idk3ydo","slide":9,"bbox":[704,366,456,176]}
+{"kind":"textbox","id":"sh/hgv21ovi","slide":9,"text":"A versão final reduziu ruído, organizou a chamada principal e separou melhor entrada, cadastro e exploração.","textPreview":"A versão final reduziu ruído, organizou a chamada principal e separou melhor entrada, cadastro e exploração.","textChars":108,"textLines":1,"bbox":[164,584,880,48]}
+{"kind":"image","id":"im/ql8fi1w7","slide":9,"name":"","geometry":"roundRect","alt":"Versão anterior da tela de boas-vindas","bbox":[128,384,420,140]}
+{"kind":"image","id":"im/d8zetwfy","slide":9,"name":"","geometry":"roundRect","alt":"Versão atual da tela de boas-vindas","bbox":[722,384,420,140]}
+{"kind":"notes","id":"nt/e2uuw9","slide":9,"text":"Esse slide é o mais próximo de uma apresentação de Figma: comparação entre variações.\nUse a comparação para provar evolução de layout, hierarquia visual e clareza.\n\n[Sources]\nScreenshots fornecidos pelo autor durante as iterações de interface."}
+{"kind":"slide","id":"sl/qmgd5s","slide":10,"title":"DevStack","textShapes":14}
+{"kind":"textbox","id":"sh/1o7i5cnq","slide":10,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/elgzuxoz","slide":10,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/fmp0325k","slide":10,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/orih0761","slide":10,"text":"As telas principais foram pensadas como uma prancha de protótipo","textPreview":"As telas principais foram pensadas como uma prancha de protótipo","textChars":64,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/psri9cnm","slide":10,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/2pgzyhob","slide":10,"text":"Mesmo quando o print final ainda não estava pronto, o layout das áreas já orientava a implementação.","textPreview":"Mesmo quando o print final ainda não estava pronto, o layout das áreas já orientava a implementação.","textChars":100,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/3q907m5g","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/cfi14r6d","slide":10,"bbox":[84,328,252,280]}
+{"kind":"shape","id":"sh/dgridwny","slide":10,"bbox":[102,348,44,44]}
+{"kind":"textbox","id":"sh/x0n2hora","slide":10,"text":"Feed","textPreview":"Feed","textChars":4,"textLines":1,"bbox":[160,346,156,28]}
+{"kind":"textbox","id":"sh/wzu18jap","slide":10,"text":"lista de dúvidas, tags e interações","textPreview":"lista de dúvidas, tags e interações","textChars":35,"textLines":1,"bbox":[160,380,156,34]}
+{"kind":"shape","id":"sh/vylkfe94","slide":10,"bbox":[102,432,216,22]}
+{"kind":"shape","id":"sh/axcj69sj","slide":10,"bbox":[102,474,216,54]}
+{"kind":"shape","id":"sh/54n2l8r6","slide":10,"bbox":[102,546,216,34]}
+{"kind":"shape","id":"sh/43e1c3al","slide":10,"bbox":[374,328,252,280]}
+{"kind":"shape","id":"sh/j25kjy9g","slide":10,"bbox":[392,348,44,44]}
+{"kind":"textbox","id":"sh/i1wjatsv","slide":10,"text":"Comunidades","textPreview":"Comunidades","textChars":11,"textLines":1,"bbox":[450,346,156,28]}
+{"kind":"textbox","id":"sh/l83i94r2","slide":10,"text":"entrada por grupos e temas de estudo","textPreview":"entrada por grupos e temas de estudo","textChars":36,"textLines":1,"bbox":[450,380,156,34]}
+{"kind":"shape","id":"sh/07a10zah","slide":10,"bbox":[392,432,216,22]}
+{"kind":"shape","id":"sh/cbe1wzid","slide":10,"bbox":[392,474,216,54]}
+{"kind":"shape","id":"sh/dcn2p4zy","slide":10,"bbox":[392,546,216,34]}
+{"kind":"shape","id":"sh/q9wju907","slide":10,"bbox":[664,328,252,280]}
+{"kind":"shape","id":"sh/ra5knuhs","slide":10,"bbox":[682,348,44,44]}
+{"kind":"textbox","id":"sh/0fy10ji9","slide":10,"text":"Perfil","textPreview":"Perfil","textChars":6,"textLines":1,"bbox":[740,346,156,28]}
+{"kind":"textbox","id":"sh/1g72tozu","slide":10,"text":"dados pessoais e identidade do usuário","textPreview":"dados pessoais e identidade do usuário","textChars":38,"textLines":1,"bbox":[740,380,156,34]}
+{"kind":"shape","id":"sh/edgjy90j","slide":10,"bbox":[682,432,216,22]}
+{"kind":"shape","id":"sh/zepkreh4","slide":10,"bbox":[682,474,216,54]}
+{"kind":"shape","id":"sh/ojy14jil","slide":10,"bbox":[682,546,216,34]}
+{"kind":"shape","id":"sh/9472xoz6","slide":10,"bbox":[954,328,252,280]}
+{"kind":"shape","id":"sh/jyt4ni18","slide":10,"bbox":[972,348,44,44]}
+{"kind":"textbox","id":"sh/idknuxkn","slide":10,"text":"Criar dúvida","textPreview":"Criar dúvida","textChars":12,"textLines":1,"bbox":[1030,346,156,28]}
+{"kind":"textbox","id":"sh/50bmpsje","slide":10,"text":"formulário com título, descrição e código","textPreview":"formulário com título, descrição e código","textChars":41,"textLines":1,"bbox":[1030,380,156,34]}
+{"kind":"shape","id":"sh/kz25wn2t","slide":10,"bbox":[972,432,216,22]}
+{"kind":"shape","id":"sh/ba94ji1c","slide":10,"bbox":[972,474,216,54]}
+{"kind":"shape","id":"sh/a90nqdkr","slide":10,"bbox":[972,546,216,34]}
+{"kind":"notes","id":"nt/qmgd5s","slide":10,"text":"Explique que esta prancha representa a organização do protótipo por telas.\nDiga que nem todo protótipo precisa ser uma cópia perfeita da versão final; ele precisa guiar decisões.\n\n[Sources]\nRepresentação visual criada a partir das telas e fluxos implementados em main.dart."}
+{"kind":"slide","id":"sl/n5ga9f","slide":11,"title":"DevStack","textShapes":10}
+{"kind":"textbox","id":"sh/cjqtc3e1","slide":11,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/rihs3ydg","slide":11,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/qhobatwv","slide":11,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/18za98vi","slide":11,"text":"O chat exigiu protótipos para entrada, anexos e retorno da IA","textPreview":"O chat exigiu protótipos para entrada, anexos e retorno da IA","textChars":61,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/07qtg3ed","slide":11,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/z6hs7ids","slide":11,"text":"A área da IA precisou prever mais estados do que uma conversa comum.","textPreview":"A área da IA precisou prever mais estados do que uma conversa comum.","textChars":68,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/e58bedw7","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/9cjudsvu","slide":11,"bbox":[86,318,326,184]}
+{"kind":"textbox","id":"sh/alcn2xoz","slide":11,"text":"Resposta da IA","textPreview":"Resposta da IA","textChars":14,"textLines":1,"bbox":[118,522,260,24]}
+{"kind":"shape","id":"sh/bmlob2pk","slide":11,"bbox":[474,318,326,184]}
+{"kind":"textbox","id":"sh/xo36dc7q","slide":11,"text":"Anexos visuais","textPreview":"Anexos visuais","textChars":14,"textLines":1,"bbox":[506,522,260,24]}
+{"kind":"shape","id":"sh/ypcn6hov","slide":11,"bbox":[862,318,326,184]}
+{"kind":"textbox","id":"sh/kbu58r61","slide":11,"text":"Upload e validação","textPreview":"Upload e validação","textChars":18,"textLines":1,"bbox":[894,522,260,24]}
+{"kind":"textbox","id":"sh/lcn6hw7m","slide":11,"text":"Essas imagens mostram pontos testados na prototipação: enviar pergunta, anexar contexto, lidar com erro e manter a conversa compreensível.","textPreview":"Essas imagens mostram pontos testados na prototipação: enviar pergunta, anexar contexto, lidar com erro e manter a conversa compreensível.","textChars":138,"textLines":1,"bbox":[150,590,980,48]}
+{"kind":"image","id":"im/p8321wf2","slide":11,"name":"","geometry":"roundRect","alt":"Tela real do chat da IA","bbox":[104,336,290,148]}
+{"kind":"image","id":"im/zexgbmxo","slide":11,"name":"","geometry":"roundRect","alt":"Prévia de anexos no chat","bbox":[492,336,290,148]}
+{"kind":"image","id":"im/836h8re5","slide":11,"name":"","geometry":"roundRect","alt":"Teste de upload de arquivo","bbox":[880,336,290,148]}
+{"kind":"notes","id":"nt/n5ga9f","slide":11,"text":"Use esse slide para mostrar que a tela de IA teve vários estados testados.\nFale que anexos e mensagens de erro entraram no protótipo porque afetam diretamente a experiência do usuário.\n\n[Sources]\nScreenshots fornecidos pelo autor durante testes de chat, anexos e upload."}
+{"kind":"slide","id":"sl/u7wq95","slide":12,"title":"DevStack","textShapes":12}
+{"kind":"textbox","id":"sh/43mhczyp","slide":12,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[68,42,150,28]}
+{"kind":"textbox","id":"sh/32dgjux4","slide":12,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[196,42,45,28]}
+{"kind":"textbox","id":"sh/214zapgj","slide":12,"text":"prototipação","textPreview":"prototipação","textChars":12,"textLines":1,"bbox":[246,46,150,22]}
+{"kind":"textbox","id":"sh/dsfyp4f6","slide":12,"text":"A prototipação deixou a implementação mais objetiva","textPreview":"A prototipação deixou a implementação mais objetiva","textChars":51,"textLines":1,"bbox":[74,114,930,94]}
+{"kind":"shape","id":"sh/crmhgzyl","slide":12,"bbox":[74,226,96,5]}
+{"kind":"textbox","id":"sh/r6dgnuxg","slide":12,"text":"Com telas e interações definidas, o desenvolvimento passou a seguir um caminho visual e funcional.","textPreview":"Com telas e interações definidas, o desenvolvimento passou a seguir um caminho visual e funcional.","textChars":98,"textLines":1,"bbox":[74,256,780,60]}
+{"kind":"textbox","id":"sh/q54zepgv","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1160,650,62,24]}
+{"kind":"shape","id":"sh/twbyd0z2","slide":12,"bbox":[118,322,10,10]}
+{"kind":"textbox","id":"sh/sb2x4fyh","slide":12,"text":"A navegação ficou clara para o usuário.","textPreview":"A navegação ficou clara para o usuário.","textChars":39,"textLines":1,"bbox":[148,310,790,44]}
+{"kind":"shape","id":"sh/m5ozex0j","slide":12,"bbox":[118,384,10,10]}
+{"kind":"textbox","id":"sh/76xg72h4","slide":12,"text":"A interface ganhou padrão visual reutilizável.","textPreview":"A interface ganhou padrão visual reutilizável.","textChars":46,"textLines":1,"bbox":[148,372,790,44]}
+{"kind":"shape","id":"sh/876hg7ip","slide":12,"bbox":[118,446,10,10]}
+{"kind":"textbox","id":"sh/t8fy9cza","slide":12,"text":"A responsividade foi pensada desde o início.","textPreview":"A responsividade foi pensada desde o início.","textChars":44,"textLines":1,"bbox":[148,434,790,44]}
+{"kind":"shape","id":"sh/u98zix0v","slide":12,"bbox":[118,508,10,10]}
+{"kind":"textbox","id":"sh/vah0b2hg","slide":12,"text":"O protótipo virou base para uma versão funcional em Flutter Web.","textPreview":"O protótipo virou base para uma versão funcional em Flutter Web.","textChars":64,"textLines":1,"bbox":[148,496,790,44]}
+{"kind":"textbox","id":"sh/gbqhk7i1","slide":12,"text":"Entrega","textPreview":"Entrega","textChars":7,"textLines":1,"bbox":[928,332,190,34]}
+{"kind":"shape","id":"sh/hwzidcz6","slide":12,"bbox":[896,386,260,92]}
+{"kind":"textbox","id":"sh/ix8zmh0r","slide":12,"text":"Protótipo de alta fidelidade + app funcional publicado","textPreview":"Protótipo de alta fidelidade + app funcional publicado","textChars":54,"textLines":1,"bbox":[920,410,212,42]}
+{"kind":"notes","id":"nt/u7wq95","slide":12,"text":"Feche dizendo que a prototipação foi a ponte entre ideia e implementação.\nSe perguntarem sobre Figma, diga que a lógica apresentada corresponde às etapas de prototipação visual: fluxo, wireframe, UI kit, alta fidelidade e responsividade.\n\n[Sources]\nSíntese do processo de prototipação e implementação do DevStack AI."}

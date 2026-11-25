@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'chat_history_limits.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/post_update.dart';
 
 class LocalAuthUser {
   final String id;
@@ -66,6 +68,26 @@ class AuthResult {
 }
 
 class LocalDatabaseService {
+  Future<Set<String>> loadFollowedCommunityIds(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList('community_follows_$userId') ?? []).toSet();
+  }
+
+  Future<void> setCommunityFollowed(
+    String userId,
+    String communityId,
+    bool followed,
+  ) async {
+    final ids = await loadFollowedCommunityIds(userId);
+    if (followed) {
+      ids.add(communityId);
+    } else {
+      ids.remove(communityId);
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('community_follows_$userId', ids.toList());
+  }
+
   static const _likedPostsKey = 'liked_post_ids';
   static const _favoritedPostsKey = 'favorited_post_ids';
   static const _searchHistoryKey = 'search_history';
@@ -93,6 +115,14 @@ class LocalDatabaseService {
 
     if (userData == null) return null;
     return LocalAuthUser.fromJson(userData);
+  }
+
+  Future<String?> loadAuthorPhoto(String userId) async {
+    final users = await _loadUsers();
+    for (final user in users) {
+      if (user['id'] == userId) return user['photoBase64'] as String?;
+    }
+    return null;
   }
 
   Future<AuthResult> registerUser({
@@ -210,9 +240,9 @@ class LocalDatabaseService {
     return (prefs.getStringList(_likedPostsKey) ?? []).toSet();
   }
 
-  Future<Set<String>> loadFavoritedPostIds() async {
+  Future<Set<String>> loadFavoritedPostIds(String userId) async {
     final prefs = await SharedPreferences.getInstance();
-    return (prefs.getStringList(_favoritedPostsKey) ?? []).toSet();
+    return (prefs.getStringList('${_favoritedPostsKey}_$userId') ?? []).toSet();
   }
 
   Future<void> savePostLike(String postId, bool isLiked) async {
@@ -228,10 +258,14 @@ class LocalDatabaseService {
     await prefs.setStringList(_likedPostsKey, likedPostIds.toList());
   }
 
-  Future<void> savePostFavorite(String postId, bool isFavorited) async {
+  Future<void> savePostFavorite(
+    String userId,
+    String postId,
+    bool isFavorited,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    final favoritedPostIds = (prefs.getStringList(_favoritedPostsKey) ?? [])
-        .toSet();
+    final key = '${_favoritedPostsKey}_$userId';
+    final favoritedPostIds = (prefs.getStringList(key) ?? []).toSet();
 
     if (isFavorited) {
       favoritedPostIds.add(postId);
@@ -239,7 +273,7 @@ class LocalDatabaseService {
       favoritedPostIds.remove(postId);
     }
 
-    await prefs.setStringList(_favoritedPostsKey, favoritedPostIds.toList());
+    await prefs.setStringList(key, favoritedPostIds.toList());
   }
 
   Future<List<String>> loadSearchHistory() async {
@@ -287,6 +321,22 @@ class LocalDatabaseService {
     await prefs.setStringList(_userPostsKey, rawPosts);
   }
 
+  Future<void> updateUserPost(
+    String userId,
+    String postId,
+    PostUpdate update,
+  ) async {
+    final changes = update.toJson();
+    final posts = await loadUserPosts();
+    final index = posts.indexWhere((post) => post['id'] == postId);
+    if (index == -1 || posts[index]['authorId'] != userId) {
+      throw StateError('Somente o autor pode alterar esta publicação.');
+    }
+    posts[index] = {...posts[index], ...changes};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_userPostsKey, posts.map(jsonEncode).toList());
+  }
+
   Future<List<Map<String, dynamic>>> loadCustomCommunities() async {
     final prefs = await SharedPreferences.getInstance();
     final rawCommunities = prefs.getStringList(_customCommunitiesKey) ?? [];
@@ -322,9 +372,7 @@ class LocalDatabaseService {
     List<Map<String, dynamic>> messages,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    final limitedMessages = messages.length > 80
-        ? messages.sublist(messages.length - 80)
-        : messages;
+    final limitedMessages = boundedChatHistory(messages);
     final rawMessages = limitedMessages
         .map((message) => jsonEncode(message))
         .toList();

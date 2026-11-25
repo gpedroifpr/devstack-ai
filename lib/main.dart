@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -9,10 +10,34 @@ import 'package:http/http.dart' as http;
 
 import 'screens/auth_screen.dart';
 import 'services/app_database_service.dart';
+import 'services/profile_photo_service.dart';
+import 'services/gemini_chat_service.dart';
+import 'services/chat_history_limits.dart';
+import 'services/chat_conversation_service.dart';
+import 'widgets/conversation_list.dart';
 import 'services/clipboard_image_paste_service.dart';
 import 'services/firebase_backend_service.dart';
+import 'widgets/post_likes_listener.dart';
+import 'widgets/navigation_viewport.dart';
+import 'widgets/email_verification_panel.dart';
+import 'widgets/post_editor_dialog.dart';
+import 'widgets/optional_post_tags.dart';
+import 'widgets/author_avatar.dart';
+import 'models/post_update.dart';
+import 'theme/app_theme.dart';
+import 'widgets/appearance_button.dart';
+import 'widgets/ai_response_body.dart';
+import 'widgets/chat_scroll_controller.dart';
+import 'widgets/response_reveal_controller.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await ThemePreference.instance.load();
+  } catch (_) {
+    debugPrint('Preferencia de aparencia indisponivel. Usando tema escuro.');
+  }
   // Carregar variáveis de ambiente do arquivo .env
   try {
     await dotenv.load(fileName: '.env');
@@ -30,12 +55,16 @@ class DevStackApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0B1215),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemePreference.instance,
+      builder: (context, mode, child) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildAppTheme(Brightness.light),
+        darkTheme: buildAppTheme(Brightness.dark),
+        themeMode: mode,
+        home: child,
       ),
-      home: const AuthGate(),
+      child: const AuthGate(),
     );
   }
 }
@@ -102,12 +131,16 @@ class _AuthGateState extends State<AuthGate> {
 // ============= MODELOS DE DADOS =============
 
 class ChatMessage {
+  final bool isError;
+  final String? requestText;
   final String text;
   final bool isUser;
   final DateTime timestamp;
   final List<AIContextAttachment> attachments;
 
   ChatMessage({
+    this.isError = false,
+    this.requestText,
     required this.text,
     required this.isUser,
     required this.timestamp,
@@ -116,6 +149,22 @@ class ChatMessage {
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
+      isError: json['isError'] == true,
+      requestText: json['requestText']?.toString(),
+      attachments:
+          (json['attachments'] is List ? json['attachments'] as List : const [])
+              .whereType<Map>()
+              .map(
+                (a) => AIContextAttachment(
+                  type: a['type']?.toString() ?? 'Arquivo',
+                  title: a['title']?.toString() ?? 'Anexo',
+                  content:
+                      'Anexo de uma mensagem anterior. Reanexe o arquivo para uma nova análise.',
+                  icon: Icons.attach_file,
+                  fileName: a['fileName']?.toString(),
+                ),
+              )
+              .toList(),
       text: json['text']?.toString() ?? '',
       isUser: json['isUser'] as bool? ?? false,
       timestamp:
@@ -127,6 +176,13 @@ class ChatMessage {
   Map<String, dynamic> toJson() {
     return {
       'text': text,
+      'isError': isError,
+      if (requestText != null) 'requestText': requestText,
+      'attachments': attachments
+          .map(
+            (a) => {'type': a.type, 'title': a.title, 'fileName': a.fileName},
+          )
+          .toList(),
       'isUser': isUser,
       'timestamp': timestamp.toIso8601String(),
     };
@@ -159,11 +215,13 @@ class AIContextAttachment {
 
 class Post {
   final String id;
+  final String? authorId;
+  final String? authorEmail;
   final String username;
   final String userHandle;
-  final String title;
-  final String description;
-  final String code;
+  String title;
+  String description;
+  String code;
   final List<String> tags;
   final int likes;
   final int comments;
@@ -173,9 +231,12 @@ class Post {
   final String? communityName;
   bool isLiked;
   bool isFavorited;
+  bool isResolved;
 
   Post({
     required this.id,
+    this.authorId,
+    this.authorEmail,
     required this.username,
     required this.userHandle,
     required this.title,
@@ -190,6 +251,7 @@ class Post {
     this.communityName,
     this.isLiked = false,
     this.isFavorited = false,
+    this.isResolved = false,
   });
 }
 
@@ -282,7 +344,7 @@ class Community {
       members: int.tryParse(json['members']?.toString() ?? '') ?? 1,
       icon: json['icon']?.toString() ?? '💬',
       isCustom: json['isCustom'] as bool? ?? true,
-      isFollowed: json['isFollowed'] as bool? ?? false,
+      isFollowed: false,
     );
   }
 
@@ -294,7 +356,6 @@ class Community {
       'members': members,
       'icon': icon,
       'isCustom': isCustom,
-      'isFollowed': isFollowed,
     };
   }
 }
@@ -323,6 +384,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
 
   final List<ChatMessage> _chatMessages = [];
+  final ChatScrollController _chatScrollController = ChatScrollController();
+  final ResponseRevealController _responseReveal = ResponseRevealController();
+  ChatMessage? _revealingMessage;
+
+  void _onResponseReveal() {
+    if (!mounted) return;
+    if (_selectedIndex == 3) _chatScrollController.followGrowingResponse();
+  }
+
   late List<Post> _allPosts = [];
   late List<Post> _filteredPosts = [];
   late List<Notification> _notifications = [];
@@ -359,8 +429,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   final List<AIContextAttachment> _aiContextAttachments = [];
   Object? _clipboardPasteSubscription;
 
-  final Color primaryCyan = const Color(0xFF4EE2EC);
-  final Color cardColor = const Color(0xFF162126);
+  Color get primaryCyan => AppPalette.color(context, const Color(0xFF4EE2EC));
+  Color get cardColor => AppPalette.color(context, const Color(0xFF162126));
   final List<String> tags = ['Todos', 'Flutter', 'AI', 'JavaScript', 'Python'];
 
   // Profile Controllers
@@ -378,11 +448,42 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   bool _cepLoading = false;
   String? _cepError;
   bool _profileEditing = false;
+  final Map<TextEditingController, String> _profileEditSnapshot = {};
+
+  void _beginProfileEditing() {
+    _profileEditSnapshot.clear();
+    for (final controller in [
+      _profileNameController,
+      _profileUsernameController,
+      _profilePhoneController,
+      _profileCepController,
+      _profileRuaController,
+      _profileNumeroController,
+      _profileComplementoController,
+      _profileBairroController,
+      _profileCidadeController,
+      _profileEstadoController,
+    ]) {
+      _profileEditSnapshot[controller] = controller.text;
+    }
+    setState(() => _profileEditing = true);
+  }
+
+  void _cancelProfileEditing() {
+    if (_savingProfile) return;
+    FocusScope.of(context).unfocus();
+    for (final entry in _profileEditSnapshot.entries) {
+      entry.key.text = entry.value;
+    }
+    _profileEditSnapshot.clear();
+    setState(() => _profileEditing = false);
+  }
 
   @override
   void initState() {
     super.initState();
     _activeUser = widget.currentUser;
+    _responseReveal.addListener(_onResponseReveal);
     _transitionController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -424,19 +525,78 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _initializeData() async {
+    if (!_activeUser.isGuest && _activeUser.photoBase64?.isNotEmpty == true) {
+      unawaited(
+        _databaseService.syncPublicAvatar().catchError((Object error) {
+          debugPrint(
+            'Avatar público não sincronizado. Confira as regras do Firestore.',
+          );
+        }),
+      );
+    }
+    await _loadAIChatHistory();
+    if (!mounted) return;
     final userPosts = await _loadUserPosts();
-    _allPosts = [...userPosts, ..._generateSamplePosts()];
+    _allPosts = userPosts;
     await _applyLocalPostState();
 
     _filteredPosts = _allPosts;
     _notifications = _generateSampleNotifications();
     final customCommunities = await _loadCustomCommunities();
     _communities = [...customCommunities, ..._generateSampleCommunities()];
+    try {
+      final followedIds = _activeUser.isGuest
+          ? <String>{}
+          : await _databaseService.loadFollowedCommunityIds(_activeUser.id);
+      for (final community in _communities) {
+        community.isFollowed = followedIds.contains(community.id);
+      }
+    } catch (_) {
+      for (final community in _communities) {
+        community.isFollowed = false;
+      }
+      if (mounted) {
+        _showAISnackBar('Não foi possível carregar as comunidades seguidas.');
+      }
+    }
     _searchHistory = await _databaseService.loadSearchHistory();
     _postComments = await _loadPostComments();
-    _mergeSampleComments();
-    await _loadAIChatHistory();
+    if (!mounted) return;
+    _watchComments();
     setState(() {});
+  }
+
+  StreamSubscription<List<Map<String, dynamic>>>? _commentsSubscription;
+  bool _publishingComment = false;
+  bool _savingProfile = false;
+  bool _creatingCommunity = false;
+  final Set<String> _pendingCommunityFollows = {};
+
+  void _watchComments() {
+    if (!_databaseService.isUsingFirebase || _commentsSubscription != null) {
+      return;
+    }
+    _commentsSubscription = FirebaseBackendService().watchPostComments().listen(
+      (rows) {
+        if (!mounted) return;
+        final grouped = <String, List<PostComment>>{};
+        for (final row in rows) {
+          final comment = PostComment.fromJson(row);
+          if (comment.postId.isEmpty || comment.body.trim().isEmpty) continue;
+          grouped.putIfAbsent(comment.postId, () => []).add(comment);
+        }
+        setState(() {
+          _postComments = grouped;
+        });
+      },
+      onError: (Object error) {
+        if (mounted) {
+          _showAISnackBar(
+            'Não foi possível atualizar os comentários. Confira sua conexão e tente recarregar a página.',
+          );
+        }
+      },
+    );
   }
 
   Future<void> _refreshFeedFromDatabase() async {
@@ -444,7 +604,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
     if (!mounted) return;
 
-    _allPosts = [...userPosts, ..._generateSamplePosts()];
+    _allPosts = userPosts;
     await _applyLocalPostState();
 
     if (!mounted) return;
@@ -459,7 +619,24 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
   Future<void> _applyLocalPostState() async {
     final likedPostIds = await _databaseService.loadLikedPostIds();
-    final favoritedPostIds = await _databaseService.loadFavoritedPostIds();
+    Set<String> favoritedPostIds = {};
+    try {
+      if (!_activeUser.isGuest) {
+        favoritedPostIds = await _databaseService.loadFavoritedPostIds(
+          _activeUser.id,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível carregar seus salvos. Atualize o feed para tentar novamente.',
+        );
+      }
+      favoritedPostIds = _allPosts
+          .where((post) => post.isFavorited)
+          .map((post) => post.id)
+          .toSet();
+    }
 
     for (final post in _allPosts) {
       post.isLiked = likedPostIds.contains(post.id);
@@ -467,32 +644,223 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _loadAIChatHistory() async {
-    final savedMessages = await _databaseService.loadAIChatHistory(
-      _activeUser.id,
-    );
+  bool _historyReady = false;
+  final _conversationsService = ChatConversationService();
+  String _conversationId = ChatConversationService.legacyId;
+  List<ChatConversation> _conversations = [];
+  final Map<String, List<Map<String, dynamic>>> _guestConversations = {};
 
-    if (!mounted || savedMessages.isEmpty) return;
-
-    _chatMessages
-      ..clear()
-      ..addAll(savedMessages.map(ChatMessage.fromJson));
+  Future<void> _refreshConversations() async {
+    final items = _activeUser.isGuest
+        ? _guestConversations.entries
+              .where((e) => e.value.isNotEmpty)
+              .map(
+                (e) => ChatConversation(
+                  e.key,
+                  ChatConversationService.titleFor(e.value),
+                  DateTime.tryParse(
+                        e.value.last['timestamp']?.toString() ?? '',
+                      ) ??
+                      DateTime.now(),
+                ),
+              )
+              .toList()
+        : await _conversationsService.list(
+            _activeUser.id,
+            cloud: _databaseService.isUsingFirebase,
+          );
+    items.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (mounted) setState(() => _conversations = items);
   }
 
-  Future<void> _saveAIChatHistory() {
-    return _databaseService.saveAIChatHistory(
-      _activeUser.id,
-      _chatMessages.map((message) => message.toJson()).toList(),
-    );
+  bool _historyBusy = false;
+  bool _historyUnsaved = false;
+  bool _historyConflict = false;
+  final GeminiChatService _gemini = GeminiChatService();
+
+  Future<void> _loadAIChatHistory() async {
+    if (!mounted || _historyBusy || _isLoadingAI) return;
+    setState(() => _historyBusy = true);
+    try {
+      final saved = _activeUser.isGuest
+          ? (_guestConversations[_conversationId] ?? <Map<String, dynamic>>[])
+          : await _conversationsService.load(
+              _activeUser.id,
+              _conversationId,
+              cloud: _databaseService.isUsingFirebase,
+            );
+      if (!mounted) return;
+      setState(() {
+        _responseReveal.finish();
+        _revealingMessage = null;
+        _chatMessages
+          ..clear()
+          ..addAll(saved.map(ChatMessage.fromJson));
+        _historyReady = true;
+        _historyConflict = false;
+        _historyUnsaved = false;
+      });
+      try {
+        await _refreshConversations();
+      } catch (_) {
+        if (mounted) {
+          _showAISnackBar(
+            'Conversa aberta, mas a lista não foi atualizada. Tente recarregar.',
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível carregar o histórico. Use o botão de atualizar no chat para tentar novamente.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _historyBusy = false);
+    }
+  }
+
+  Future<void> _saveAIChatHistory() async {
+    if (_activeUser.isGuest) {
+      _guestConversations[_conversationId] = _chatMessages
+          .map((m) => m.toJson())
+          .toList();
+      await _refreshConversations();
+      return;
+    }
+    try {
+      await _conversationsService.save(
+        _activeUser.id,
+        _conversationId,
+        _chatMessages.map((message) => message.toJson()).toList(),
+        cloud: _databaseService.isUsingFirebase,
+      );
+      if (mounted) setState(() => _historyUnsaved = false);
+      // A listing failure must not turn a successful save into a conflict.
+      try {
+        await _refreshConversations();
+      } catch (_) {}
+    } on ChatHistoryConflict {
+      if (mounted) {
+        setState(() {
+          _historyUnsaved = true;
+          _historyConflict = true;
+        });
+        _showAISnackBar(
+          'A conversa mudou em outra aba. Copie as mensagens que deseja guardar e recarregue o histórico pelo botão no topo.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _historyUnsaved = true);
+        _showAISnackBar(
+          'Conversa mantida nesta tela, mas não sincronizada. Tente salvar novamente antes de sair.',
+        );
+      }
+    }
+  }
+
+  Future<void> _retryHistory() async {
+    if (_historyBusy || _isLoadingAI) return;
+    if (_historyConflict) {
+      final reload = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Carregar a versão da outra aba?'),
+          content: const Text(
+            'As mensagens não sincronizadas desta tela serão substituídas. Copie o que deseja guardar antes de continuar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Carregar'),
+            ),
+          ],
+        ),
+      );
+      if (reload != true || !mounted) return;
+      await _loadAIChatHistory();
+      return;
+    }
+    if (!_historyReady) {
+      await _loadAIChatHistory();
+      return;
+    }
+    setState(() => _historyBusy = true);
+    try {
+      await _saveAIChatHistory();
+    } finally {
+      if (mounted) setState(() => _historyBusy = false);
+    }
   }
 
   Future<void> _clearAIChatHistory() async {
-    setState(() {
-      _chatMessages.clear();
-      _aiContextAttachments.clear();
-    });
-
-    await _databaseService.clearAIChatHistory(_activeUser.id);
+    if (_isLoadingAI || _historyBusy || !_historyReady) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Limpar conversa?'),
+        content: const Text(
+          'As mensagens desta conversa serão excluídas. Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _isLoadingAI || _historyBusy) return;
+    setState(() => _historyBusy = true);
+    try {
+      if (!_activeUser.isGuest) {
+        await _conversationsService.save(
+          _activeUser.id,
+          _conversationId,
+          [],
+          cloud: _databaseService.isUsingFirebase,
+        );
+      } else {
+        _guestConversations.remove(_conversationId);
+      }
+      if (!mounted) return;
+      setState(() {
+        _chatMessages.clear();
+        _aiContextAttachments.clear();
+        _historyUnsaved = false;
+        _historyConflict = false;
+      });
+      try {
+        await _refreshConversations();
+      } catch (_) {}
+    } on ChatHistoryConflict {
+      if (mounted) {
+        setState(() {
+          _historyUnsaved = true;
+          _historyConflict = true;
+        });
+        _showAISnackBar(
+          'A conversa mudou em outra aba. Recarregue o histórico antes de limpar.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível limpar a conversa. Suas mensagens foram mantidas.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _historyBusy = false);
+    }
   }
 
   int get _unreadNotificationCount {
@@ -523,60 +891,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     return _postComments[post.id] ?? const [];
   }
 
-  void _mergeSampleComments() {
-    for (final comment in _generateSampleComments()) {
-      final comments = _postComments.putIfAbsent(comment.postId, () => []);
-      final alreadyExists = comments.any((saved) => saved.id == comment.id);
-
-      if (!alreadyExists) {
-        comments.add(comment);
-      }
-    }
-
-    for (final comments in _postComments.values) {
-      comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    }
-  }
-
-  List<PostComment> _generateSampleComments() {
-    final now = DateTime.now();
-
-    return [
-      PostComment(
-        id: 'sample-comment-1',
-        postId: '1',
-        authorId: 'sample-marina',
-        authorName: 'Marina Lopes',
-        body:
-            'Uma boa saída é criar uma pasta screens para telas e services para integrações. Depois dá para separar models também.',
-        createdAt: now.subtract(const Duration(minutes: 32)),
-      ),
-      PostComment(
-        id: 'sample-comment-2',
-        postId: '2',
-        authorId: 'sample-rafael',
-        authorName: 'Rafael Costa',
-        body:
-            'Esse exemplo ajuda bastante. Eu só adicionaria tratamento de erro com try/catch para chamadas externas.',
-        createdAt: now.subtract(const Duration(hours: 1)),
-      ),
-      PostComment(
-        id: 'sample-comment-3',
-        postId: '3',
-        authorId: 'sample-equipe',
-        authorName: 'Equipe DevStack',
-        body:
-            'Quando a dúvida vem com erro, trecho do código e objetivo esperado, a IA consegue responder muito melhor.',
-        createdAt: now.subtract(const Duration(hours: 2)),
-      ),
-    ];
-  }
-
   int _visibleCommentCount(Post post) {
-    return post.comments + _commentsForPost(post).length;
+    return _commentsForPost(post).length;
   }
 
   Future<void> _publishComment(Post post) async {
+    if (_publishingComment) return;
     if (_activeUser.isGuest) {
       _showAccountRequiredDialog('comentar em publicações');
       return;
@@ -602,13 +922,28 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       createdAt: DateTime.now(),
     );
 
-    await _databaseService.savePostComment(_activeUser.id, comment.toJson());
+    setState(() => _publishingComment = true);
+    try {
+      await _databaseService.savePostComment(_activeUser.id, comment.toJson());
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível publicar o comentário. Verifique sua conexão e tente novamente. Seu texto foi mantido.',
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _publishingComment = false);
+    }
 
     if (!mounted) return;
 
     setState(() {
-      _postComments.putIfAbsent(post.id, () => []).insert(0, comment);
-      _commentController.clear();
+      final comments = _postComments.putIfAbsent(post.id, () => []);
+      if (!comments.any((saved) => saved.id == comment.id)) {
+        comments.insert(0, comment);
+      }
+      if (_commentController.text.trim() == body) _commentController.clear();
     });
 
     _addNotification(
@@ -628,6 +963,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             DateTime.now().millisecondsSinceEpoch.toString(),
         username: post['username']?.toString() ?? _activeUser.name,
         userHandle: post['userHandle']?.toString() ?? _activeUser.username,
+        authorId: post['authorId']?.toString(),
+        authorEmail: post['authorEmail']?.toString(),
         title: post['title']?.toString() ?? 'Dúvida sem título',
         description: post['description']?.toString() ?? '',
         code: post['code']?.toString() ?? '',
@@ -640,119 +977,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         isQuestion: post['isQuestion'] as bool? ?? true,
         communityId: post['communityId']?.toString(),
         communityName: post['communityName']?.toString(),
+        isResolved: post['isResolved'] == true,
       );
     }).toList();
   }
 
-  List<Post> _generateSamplePosts() {
-    return [
-      Post(
-        id: '1',
-        username: 'Equipe DevStack',
-        userHandle: '@devstack',
-        title: 'Como organizar uma tela Flutter sem deixar tudo no main.dart?',
-        description:
-            'Uma dúvida comum no começo do projeto é separar telas, serviços e modelos sem quebrar o app.',
-        code: 'lib/\n  main.dart\n  screens/\n  services/\n  models/',
-        tags: ['Flutter', 'Arquitetura', 'AI'],
-        likes: 38,
-        comments: 7,
-        timeAgo: 'Fixado',
-        isQuestion: true,
-      ),
-      Post(
-        id: '2',
-        username: 'Marina Lopes',
-        userHandle: '@marina.dev',
-        title: 'Entendendo async/await com um exemplo simples',
-        description:
-            'Async/await ajuda a lidar com chamadas de API sem travar a interface do aplicativo.',
-        code:
-            'Future<void> carregarPosts() async {\n  final posts = await api.buscarPosts();\n  setState(() => lista = posts);\n}',
-        tags: ['Flutter', 'Dart', 'Backend'],
-        likes: 92,
-        comments: 14,
-        timeAgo: '2h',
-      ),
-      Post(
-        id: '3',
-        username: 'Rafael Costa',
-        userHandle: '@rafa.front',
-        title: 'Checklist antes de pedir ajuda para a IA',
-        description:
-            'Explique o erro, mande o trecho principal do código e diga o que você já tentou.',
-        code: 'Erro:\nO que eu esperava:\nO que aconteceu:\nTrecho do código:',
-        tags: ['AI', 'JavaScript', 'Estudo'],
-        likes: 74,
-        comments: 9,
-        timeAgo: '4h',
-      ),
-      Post(
-        id: '4',
-        username: 'Bianca Souza',
-        userHandle: '@bia.ai',
-        title:
-            'O que uma IA generativa pode fazer dentro de uma comunidade dev?',
-        description:
-            'Além de responder perguntas, ela pode resumir dúvidas, revisar código e sugerir próximos passos.',
-        code:
-            'Prompt útil:\n"Explique este erro como se eu estivesse aprendendo Flutter."',
-        tags: ['AI', 'Python', 'ML'],
-        likes: 128,
-        comments: 21,
-        timeAgo: '1d',
-      ),
-      Post(
-        id: '5',
-        username: 'Lucas Neri',
-        userHandle: '@lucas.web',
-        title: 'Diferença entre front-end, back-end e banco de dados',
-        description:
-            'Um resumo rápido para quem está começando a entender a estrutura de aplicações modernas.',
-        code:
-            'Front-end: interface\nBack-end: regras e APIs\nBanco: dados persistentes',
-        tags: ['JavaScript', 'Backend', 'Estudo'],
-        likes: 61,
-        comments: 8,
-        timeAgo: '2d',
-      ),
-    ];
-  }
-
   List<Notification> _generateSampleNotifications() {
-    return [
-      Notification(
-        id: '1',
-        title: 'Bem-vindo ao DevStack AI',
-        message: _activeUser.isGuest
-            ? 'Você está explorando como visitante. Entre para salvar dúvidas e histórico.'
-            : 'Seu feed, IA e comunidades já estão prontos para estudo.',
-        timeAgo: '2 min',
-        type: 'system',
-      ),
-      Notification(
-        id: '2',
-        title: 'Comunidade recomendada',
-        message: 'A comunidade Flutter Brasil combina com seus interesses.',
-        timeAgo: '15 min',
-        type: 'follow',
-      ),
-      Notification(
-        id: '3',
-        title: 'Dica da IA',
-        message:
-            'Você pode colar mensagens de erro completas no chat para receber uma explicação melhor.',
-        timeAgo: '1h',
-        type: 'ai',
-      ),
-      Notification(
-        id: '4',
-        title: 'Publicação em destaque',
-        message: 'Seu post sobre cadastro local recebeu novas curtidas.',
-        timeAgo: '3h',
-        type: 'trending',
-      ),
-    ];
+    return [];
   }
 
   void _addNotification({
@@ -894,17 +1125,182 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _togglePostLike(Post post) async {
+  final Set<String> _pendingPostLikes = {};
+  final Set<String> _pendingPostFavorites = {};
+  final Set<String> _pendingPostUpdates = {};
+  String _feedStatus = 'all';
+
+  bool _ownsPost(Post post) =>
+      !_activeUser.isGuest && post.authorId == _activeUser.id;
+
+  Future<void> _updatePost(Post post, PostUpdate update) async {
+    if (!_ownsPost(post) || _pendingPostUpdates.contains(post.id)) {
+      throw StateError('Publicação indisponível para edição.');
+    }
+    setState(() => _pendingPostUpdates.add(post.id));
+    try {
+      await _databaseService.updateUserPost(_activeUser.id, post.id, update);
+      if (!mounted) return;
+      setState(() {
+        // A refresh can replace the objects while a save is in flight.
+        for (final target in {
+          ..._allPosts,
+          ..._filteredPosts,
+          post,
+          ?_selectedPost,
+        }) {
+          if (target.id != post.id) continue;
+          if (update.title != null) target.title = update.title!.trim();
+          if (update.description != null) {
+            target.description = update.description!.trim();
+          }
+          if (update.code != null) target.code = update.code!;
+          if (update.isResolved != null) target.isResolved = update.isResolved!;
+        }
+      });
+    } finally {
+      if (mounted) setState(() => _pendingPostUpdates.remove(post.id));
+    }
+  }
+
+  Widget _postOwnerMenu(Post post) {
+    if (!_ownsPost(post)) return const SizedBox.shrink();
+    return PopupMenuButton<String>(
+      tooltip: 'Gerenciar publicação',
+      enabled: !_pendingPostUpdates.contains(post.id),
+      icon: const Icon(Icons.more_horiz_rounded),
+      onSelected: (action) async {
+        if (action == 'edit') {
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => PostEditorDialog(
+              title: post.title,
+              description: post.description,
+              code: post.code,
+              onSave: (update) => _updatePost(post, update),
+            ),
+          );
+        } else {
+          try {
+            await _updatePost(post, PostUpdate(isResolved: !post.isResolved));
+            if (mounted) {
+              _showAISnackBar(
+                post.isResolved
+                    ? 'Dúvida marcada como resolvida.'
+                    : 'Dúvida reaberta.',
+              );
+            }
+          } catch (_) {
+            if (mounted) {
+              _showAISnackBar(
+                'Não foi possível atualizar a dúvida. Tente novamente.',
+              );
+            }
+          }
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: ListTile(
+            leading: Icon(Icons.edit_outlined),
+            title: Text('Editar publicação'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (post.isQuestion)
+          PopupMenuItem(
+            value: 'resolve',
+            child: ListTile(
+              leading: Icon(
+                post.isResolved
+                    ? Icons.replay_rounded
+                    : Icons.check_circle_outline,
+              ),
+              title: Text(
+                post.isResolved ? 'Reabrir dúvida' : 'Marcar como resolvida',
+              ),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLiveLikeButton(Post post) {
+    if (!_databaseService.isUsingFirebase || post.authorId == null) {
+      return _buildPostActionButton(
+        icon: Icons.favorite_border,
+        label: 'Curtir',
+        value: '${post.likes}',
+        color: primaryCyan,
+        onTap: () {
+          if (_activeUser.isGuest) {
+            _showAccountRequiredDialog('curtir publicações');
+          } else {
+            _showAISnackBar(
+              'Curtidas estão disponíveis nas publicações salvas no Firebase.',
+            );
+          }
+        },
+      );
+    }
+
+    return PostLikesListener(
+      key: ValueKey('likes-${post.id}'),
+      postId: post.id,
+      watchLikes: FirebaseBackendService().watchPostLikes,
+      builder: (snapshot, retry) {
+        final likes = snapshot.data;
+        final liked = likes?.contains(_activeUser.id) ?? false;
+        final pending = _pendingPostLikes.contains(post.id);
+        return _buildPostActionButton(
+          icon: liked ? Icons.favorite : Icons.favorite_border,
+          label: snapshot.hasError
+              ? 'Tentar novamente'
+              : (likes == null ? 'Carregando' : 'Curtir'),
+          value: likes == null ? '...' : '${likes.length}',
+          color: liked
+              ? AppPalette.color(context, Colors.redAccent)
+              : primaryCyan,
+          filled: liked,
+          onTap: () {
+            if (pending) return;
+            if (snapshot.hasError) {
+              debugPrint(
+                'Falha ao carregar curtidas de ${post.id}: ${snapshot.error}',
+              );
+              retry();
+              return;
+            }
+            if (likes == null) return;
+            _togglePostLike(post, liked: !liked);
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _togglePostLike(Post post, {required bool liked}) async {
     if (_activeUser.isGuest) {
       _showAccountRequiredDialog('curtir publicações');
       return;
     }
 
-    setState(() {
-      post.isLiked = !post.isLiked;
-    });
-
-    await _databaseService.savePostLike(post.id, post.isLiked);
+    if (_pendingPostLikes.contains(post.id)) return;
+    setState(() => _pendingPostLikes.add(post.id));
+    try {
+      await FirebaseBackendService().setPostLiked(post.id, liked);
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível salvar a curtida. Verifique sua conexão e tente novamente.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pendingPostLikes.remove(post.id));
+    }
   }
 
   Future<void> _togglePostFavorite(Post post) async {
@@ -913,22 +1309,69 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       return;
     }
 
-    setState(() {
-      post.isFavorited = !post.isFavorited;
-    });
-
-    await _databaseService.savePostFavorite(post.id, post.isFavorited);
+    if (_pendingPostFavorites.contains(post.id)) return;
+    final favorite = !post.isFavorited;
+    setState(() => _pendingPostFavorites.add(post.id));
+    try {
+      await _databaseService.savePostFavorite(
+        _activeUser.id,
+        post.id,
+        favorite,
+      );
+      if (!mounted) return;
+      setState(() {
+        for (final target in {
+          ..._allPosts,
+          ..._filteredPosts,
+          post,
+          ?_selectedPost,
+        }) {
+          if (target.id == post.id) target.isFavorited = favorite;
+        }
+      });
+      _showAISnackBar(
+        favorite
+            ? 'Publicação salva na sua conta.'
+            : 'Publicação removida dos salvos.',
+      );
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível salvar essa alteração. Tente novamente.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pendingPostFavorites.remove(post.id));
+    }
   }
 
-  void _toggleCommunityFollow(Community community) {
+  Future<void> _toggleCommunityFollow(Community community) async {
     if (_activeUser.isGuest) {
       _showAccountRequiredDialog('seguir comunidades');
       return;
     }
 
-    setState(() {
-      community.isFollowed = !community.isFollowed;
-    });
+    if (_pendingCommunityFollows.contains(community.id)) return;
+    final followed = !community.isFollowed;
+    setState(() => _pendingCommunityFollows.add(community.id));
+    try {
+      await _databaseService.setCommunityFollowed(
+        _activeUser.id,
+        community.id,
+        followed,
+      );
+      if (mounted) setState(() => community.isFollowed = followed);
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível salvar. Tente seguir a comunidade novamente.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _pendingCommunityFollows.remove(community.id));
+      }
+    }
   }
 
   void _showCreateDoubtDialog({Community? community}) {
@@ -943,7 +1386,6 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           community,
         ).where((tag) => tags.contains(tag)).take(2),
     };
-    if (selectedTags.isEmpty) selectedTags.add('AI');
     _doubtTitleController.clear();
     _doubtDescriptionController.clear();
     _doubtCodeController.clear();
@@ -997,7 +1439,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                 Text(
                                   'Organize seu problema antes de pedir ajuda.',
                                   style: TextStyle(
-                                    color: Colors.grey.shade400,
+                                    color: AppPalette.color(
+                                      context,
+                                      Colors.grey.shade400,
+                                    ),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -1032,7 +1477,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                 child: Text(
                                   'Publicando em ${community.name}',
                                   style: TextStyle(
-                                    color: Colors.grey.shade200,
+                                    color: AppPalette.color(
+                                      context,
+                                      Colors.grey.shade200,
+                                    ),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1066,55 +1514,21 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Tags',
+                        'Tags (opcionais)',
                         style: TextStyle(
                           color: primaryCyan,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: tags.where((tag) => tag != 'Todos').map((
-                          tag,
-                        ) {
-                          final isSelected = selectedTags.contains(tag);
-                          return GestureDetector(
-                            onTap: () {
-                              setDialogState(() {
-                                if (isSelected) {
-                                  selectedTags.remove(tag);
-                                } else {
-                                  selectedTags.add(tag);
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? primaryCyan.withValues(alpha: 0.18)
-                                    : const Color(0xFF0F171A),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? primaryCyan
-                                      : Colors.white12,
-                                ),
-                              ),
-                              child: Text(
-                                tag,
-                                style: TextStyle(
-                                  color: isSelected ? primaryCyan : Colors.grey,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                      OptionalPostTags(
+                        options: tags,
+                        selected: selectedTags,
+                        onChanged: (next) => setDialogState(() {
+                          selectedTags
+                            ..clear()
+                            ..addAll(next);
+                        }),
                       ),
                       const SizedBox(height: 18),
                       Row(
@@ -1122,9 +1536,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.grey.shade300,
+                                foregroundColor: AppPalette.color(
+                                  context,
+                                  Colors.grey.shade300,
+                                ),
                                 side: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.15),
+                                  color: AppPalette.color(
+                                    context,
+                                    Colors.white,
+                                  ).withValues(alpha: 0.15),
                                 ),
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
@@ -1139,7 +1559,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryCyan,
-                                foregroundColor: Colors.black,
+                                foregroundColor: AppPalette.color(
+                                  context,
+                                  Colors.black,
+                                ),
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
@@ -1211,7 +1634,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 Text(
                   'Você pode explorar o DevStack AI como visitante, usar o chat com IA e navegar pelo feed. Para $action, crie uma conta ou entre com seu e-mail.',
                   style: TextStyle(
-                    color: Colors.grey.shade300,
+                    color: AppPalette.color(context, Colors.grey.shade300),
                     fontSize: 13,
                     height: 1.4,
                   ),
@@ -1222,9 +1645,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade300,
+                          foregroundColor: AppPalette.color(
+                            context,
+                            Colors.grey.shade300,
+                          ),
                           side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.14),
+                            color: AppPalette.color(
+                              context,
+                              Colors.white,
+                            ).withValues(alpha: 0.14),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
@@ -1240,7 +1669,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryCyan,
-                          foregroundColor: Colors.black,
+                          foregroundColor: AppPalette.color(
+                            context,
+                            Colors.black,
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1287,20 +1719,30 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0D171B),
+            color: AppPalette.color(context, const Color(0xFF0D171B)),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: TextField(
             controller: controller,
             maxLines: maxLines,
             style: TextStyle(
-              color: Colors.white,
+              color: AppPalette.color(context, Colors.white),
               fontFamily: monospace ? GoogleFonts.firaCode().fontFamily : null,
             ),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -1337,12 +1779,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
     final post = Post(
       id: 'user-${DateTime.now().millisecondsSinceEpoch}',
+      authorId: _activeUser.id,
+      authorEmail: _activeUser.email,
       username: _activeUser.name,
       userHandle: _activeUser.username,
       title: title,
       description: description,
       code: code,
-      tags: selectedTags.isEmpty ? ['AI'] : selectedTags,
+      tags: List<String>.of(selectedTags),
       likes: 0,
       comments: 0,
       timeAgo: 'Agora',
@@ -1351,24 +1795,33 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       communityName: community?.name,
     );
 
-    await _databaseService.saveUserPost({
-      'id': post.id,
-      'username': post.username,
-      'userHandle': post.userHandle,
-      'title': post.title,
-      'description': post.description,
-      'code': post.code,
-      'tags': post.tags,
-      'likes': post.likes,
-      'comments': post.comments,
-      'timeAgo': post.timeAgo,
-      'isQuestion': post.isQuestion,
-      'communityId': post.communityId,
-      'communityName': post.communityName,
-      'authorId': _activeUser.id,
-      'authorEmail': _activeUser.email,
-      'createdAtLocal': DateTime.now().toIso8601String(),
-    });
+    try {
+      await _databaseService.saveUserPost({
+        'id': post.id,
+        'username': post.username,
+        'userHandle': post.userHandle,
+        'title': post.title,
+        'description': post.description,
+        'code': post.code,
+        'tags': post.tags,
+        'likes': post.likes,
+        'comments': post.comments,
+        'timeAgo': post.timeAgo,
+        'isQuestion': post.isQuestion,
+        'communityId': post.communityId,
+        'communityName': post.communityName,
+        'authorId': _activeUser.id,
+        'authorEmail': _activeUser.email,
+        'createdAtLocal': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível publicar a dúvida. Verifique sua conexão e tente novamente. Seu texto foi mantido.',
+        );
+      }
+      return;
+    }
 
     if (!mounted) return;
 
@@ -1401,6 +1854,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _commentsSubscription?.cancel();
+    _gemini.close();
+    _responseReveal.dispose();
+    _chatScrollController.dispose();
     ClipboardImagePasteService.cancel(_clipboardPasteSubscription);
     _transitionController.dispose();
     _profileNameController.dispose();
@@ -1435,42 +1892,93 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   }
 
   List<Post> get _feedPosts {
-    if (_selectedTagIndex == 0) return _allPosts;
-
     final selectedTag = tags[_selectedTagIndex].toLowerCase();
     return _allPosts.where((post) {
-      return post.tags.any((tag) => tag.toLowerCase() == selectedTag);
+      final matchesTag =
+          _selectedTagIndex == 0 ||
+          post.tags.any((tag) => tag.toLowerCase() == selectedTag);
+      final matchesStatus = switch (_feedStatus) {
+        'open' => post.isQuestion && !post.isResolved,
+        'resolved' => post.isQuestion && post.isResolved,
+        'mine' => _ownsPost(post),
+        'saved' => !_activeUser.isGuest && post.isFavorited,
+        _ => true,
+      };
+      return matchesTag && matchesStatus;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_selectedPost == null) _buildHeader(),
-                Expanded(
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: _buildContent(),
+      body: NotificationListener<UserScrollNotification>(
+        onNotification: (notification) {
+          if (_selectedIndex == 3 &&
+              notification.metrics.axis == Axis.vertical &&
+              notification.direction != ScrollDirection.idle) {
+            _chatScrollController.cancelFollow();
+          }
+          return false;
+        },
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: Stack(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_selectedPost == null) _buildHeader(),
+                      Expanded(
+                        child: FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: _buildContent(),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  if (_selectedIndex != 3 && _selectedPost == null)
+                    _buildFloatingAskButton(),
+                ],
+              ),
             ),
-            if (_selectedIndex != 3 && _selectedPost == null)
-              _buildFloatingAskButton(),
-          ],
+          ),
         ),
       ),
-      bottomNavigationBar: _selectedPost == null ? _buildBottomNav() : null,
+      bottomNavigationBar: _selectedPost == null
+          ? Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: _buildBottomNav(),
+              ),
+            )
+          : null,
     );
   }
 
+  String get _navigationLocation {
+    if (_selectedPost != null) return 'post-${_selectedPost!.id}';
+    if (_isShowingSearch) return 'search';
+    if (_isShowingNotifications) return 'notifications';
+    return switch (_selectedIndex) {
+      0 => 'feed-$_selectedTagIndex-$_feedStatus',
+      1 => 'community-${_selectedCommunity?.id ?? 'list'}',
+      2 => 'profile-${_selectedProfileSection ?? 'overview'}',
+      _ => 'ai',
+    };
+  }
+
   Widget _buildContent() {
+    return NavigationViewport(
+      key: ValueKey(_activeUser.id),
+      location: _navigationLocation,
+      child: _buildActiveContent(),
+    );
+  }
+
+  Widget _buildActiveContent() {
     if (_selectedPost != null) {
       return _buildPostDetailContent(_selectedPost!);
     }
@@ -1508,6 +2016,42 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         _buildHomeHero(feedPosts.length, selectedTag),
         if (_activeUser.isGuest) _buildGuestHomePrompt(),
         _buildTagsRow(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: [
+                const ButtonSegment(value: 'all', label: Text('Todas')),
+                const ButtonSegment(value: 'open', label: Text('Em aberto')),
+                const ButtonSegment(
+                  value: 'resolved',
+                  label: Text('Resolvidas'),
+                ),
+                if (!_activeUser.isGuest)
+                  const ButtonSegment(value: 'mine', label: Text('Minhas')),
+                if (!_activeUser.isGuest)
+                  const ButtonSegment(
+                    value: 'saved',
+                    label: Text('Salvas'),
+                    icon: Icon(Icons.bookmark_outline),
+                  ),
+              ],
+              selected: {_feedStatus},
+              onSelectionChanged: (value) =>
+                  setState(() => _feedStatus = value.first),
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: primaryCyan,
+                selectedForegroundColor: AppPalette.color(
+                  context,
+                  Colors.black,
+                ),
+                foregroundColor: AppPalette.color(context, Colors.white70),
+              ),
+            ),
+          ),
+        ),
         Expanded(
           child: RefreshIndicator(
             color: primaryCyan,
@@ -1515,10 +2059,26 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             onRefresh: _refreshFeedFromDatabase,
             child: feedPosts.isEmpty
                 ? ListView(
+                    key: const PageStorageKey('feed-list'),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(14),
-                    children: [_buildEmptyFeedState(selectedTag)],
+                    children: [
+                      _buildEmptyFeedState(selectedTag, filtered: true),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () => setState(() {
+                            _feedStatus = 'all';
+                            _selectedTagIndex = 0;
+                          }),
+                          icon: const Icon(Icons.filter_alt_off_outlined),
+                          label: const Text('Limpar filtros'),
+                        ),
+                      ),
+                    ],
                   )
                 : ListView.builder(
+                    key: const PageStorageKey('feed-list'),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
                     itemCount: feedPosts.length + 1,
                     itemBuilder: (context, index) {
@@ -1540,9 +2100,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
         decoration: BoxDecoration(
-          color: const Color(0xFF10191D),
+          color: AppPalette.color(context, const Color(0xFF10191D)),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           children: [
@@ -1566,7 +2131,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         : '$postCount posts em $selectedTag',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade400),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -1584,7 +2152,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 tooltip: 'Criar dúvida',
                 style: IconButton.styleFrom(
                   backgroundColor: primaryCyan,
-                  foregroundColor: Colors.black,
+                  foregroundColor: AppPalette.color(context, Colors.black),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(13),
                   ),
@@ -1618,7 +2186,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 'Entre para publicar dúvidas e salvar seu progresso.',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade200, fontSize: 12),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.grey.shade200),
+                  fontSize: 12,
+                ),
               ),
             ),
             TextButton(
@@ -1638,7 +2209,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildEmptyFeedState(String selectedTag) {
+  Widget _buildEmptyFeedState(String selectedTag, {bool filtered = false}) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1653,9 +2224,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 6),
             Text(
-              'Ainda não há publicações em $selectedTag.',
+              filtered
+                  ? 'Nenhuma publicação corresponde aos filtros selecionados.'
+                  : 'Ainda não há publicações em $selectedTag.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey),
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -1684,10 +2260,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             onSubmitted: (query) {
               _addToSearchHistory(query);
             },
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppPalette.color(context, Colors.white)),
             decoration: InputDecoration(
               hintText: 'Procurar posts, tags ou usuários...',
-              hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.5),
+              ),
               prefixIcon: Icon(Icons.search, color: primaryCyan),
               suffixIcon: _searchQuery.isNotEmpty
                   ? GestureDetector(
@@ -1734,7 +2315,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         Text(
                           'Busque por erro, linguagem, usuário, comunidade ou peça ajuda para a IA.',
                           style: TextStyle(
-                            color: Colors.grey.shade400,
+                            color: AppPalette.color(
+                              context,
+                              Colors.grey.shade400,
+                            ),
                             fontSize: 12,
                           ),
                         ),
@@ -1843,7 +2427,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       Text(
                         'Comunidades',
                         style: TextStyle(
-                          color: Colors.grey.shade300,
+                          color: AppPalette.color(
+                            context,
+                            Colors.grey.shade300,
+                          ),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1855,7 +2442,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       Text(
                         'Posts',
                         style: TextStyle(
-                          color: Colors.grey.shade300,
+                          color: AppPalette.color(
+                            context,
+                            Colors.grey.shade300,
+                          ),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1914,7 +2504,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1933,7 +2528,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               subtitle,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade400),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
@@ -1951,13 +2549,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: const Color(0xFF10191D),
+          color: AppPalette.color(context, const Color(0xFF10191D)),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: primaryCyan.withValues(alpha: 0.18)),
         ),
         child: Text(
           query,
-          style: TextStyle(color: Colors.grey.shade200, fontSize: 12),
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.grey.shade200),
+            fontSize: 12,
+          ),
         ),
       ),
     );
@@ -1977,9 +2578,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF10191D),
+          color: AppPalette.color(context, const Color(0xFF10191D)),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           children: [
@@ -1996,7 +2602,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 3),
                   Text(
                     '${community.members} membros',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade500),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -2015,7 +2624,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: AppPalette.color(
+            context,
+            Colors.white,
+          ).withValues(alpha: 0.06),
+        ),
       ),
       child: Column(
         children: [
@@ -2029,7 +2643,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           Text(
             'Tente uma tag, uma linguagem ou use a IA para transformar sua busca em uma dúvida.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+            style: TextStyle(
+              color: AppPalette.color(context, Colors.grey.shade400),
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -2060,7 +2677,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     _unreadNotificationCount == 0
                         ? 'Tudo lido por enquanto.'
                         : 'Você tem $_unreadNotificationCount novidade(s).',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade400),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -2091,11 +2711,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: notif.isRead ? const Color(0xFF10191D) : cardColor,
+          color: notif.isRead
+              ? AppPalette.color(context, const Color(0xFF10191D))
+              : cardColor,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
             color: notif.isRead
-                ? Colors.white.withValues(alpha: 0.06)
+                ? AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.06)
                 : primaryCyan.withValues(alpha: 0.24),
           ),
         ),
@@ -2147,13 +2772,19 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     notif.message,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade400),
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     notif.timeAgo,
                     style: TextStyle(
-                      color: Colors.grey.withValues(alpha: 0.7),
+                      color: AppPalette.color(
+                        context,
+                        Colors.grey,
+                      ).withValues(alpha: 0.7),
                       fontSize: 10,
                     ),
                   ),
@@ -2163,7 +2794,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             const SizedBox(width: 8),
             Icon(
               Icons.chevron_right_rounded,
-              color: Colors.grey.shade600,
+              color: AppPalette.color(context, Colors.grey.shade600),
               size: 20,
             ),
           ],
@@ -2216,7 +2847,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               tooltip: 'Criar comunidade',
               style: IconButton.styleFrom(
                 backgroundColor: primaryCyan,
-                foregroundColor: Colors.black,
+                foregroundColor: AppPalette.color(context, Colors.black),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -2229,7 +2860,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         const SizedBox(height: 6),
         Text(
           'Escolha espaços para acompanhar dúvidas, projetos e conteúdos por área.',
-          style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.grey.shade400),
+            fontSize: 13,
+          ),
         ),
         const SizedBox(height: 16),
         Container(
@@ -2251,7 +2885,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               ),
               Text(
                 '${_communities.length} disponíveis',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.grey.shade400),
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -2318,7 +2955,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             Text(
                               'Monte um espaço para discutir um tema do projeto.',
                               style: TextStyle(
-                                color: Colors.grey.shade400,
+                                color: AppPalette.color(
+                                  context,
+                                  Colors.grey.shade400,
+                                ),
                                 fontSize: 12,
                               ),
                             ),
@@ -2355,9 +2995,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       Expanded(
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey.shade300,
+                            foregroundColor: AppPalette.color(
+                              context,
+                              Colors.grey.shade300,
+                            ),
                             side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: AppPalette.color(
+                                context,
+                                Colors.white,
+                              ).withValues(alpha: 0.12),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
@@ -2373,7 +3019,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryCyan,
-                            foregroundColor: Colors.black,
+                            foregroundColor: AppPalette.color(
+                              context,
+                              Colors.black,
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
@@ -2399,6 +3048,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _createCommunity(BuildContext dialogContext) async {
+    if (_creatingCommunity) return;
     final name = _communityNameController.text.trim();
     final description = _communityDescriptionController.text.trim();
     final icon = _communityIconController.text.trim().isEmpty
@@ -2415,16 +3065,28 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       name: name,
       description: description,
       members: 1,
-      icon: String.fromCharCode(icon.runes.first),
+      icon: icon.characters.first,
       isCustom: true,
       isFollowed: true,
     );
 
-    await _databaseService.saveCustomCommunity({
-      ...community.toJson(),
-      'ownerId': _activeUser.id,
-      'ownerName': _activeUser.name,
-    });
+    _creatingCommunity = true;
+    try {
+      await _databaseService.saveCustomCommunity({
+        ...community.toJson(),
+        'ownerId': _activeUser.id,
+        'ownerName': _activeUser.name,
+      });
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível criar a comunidade. Verifique sua conexão e tente novamente. Os campos foram mantidos.',
+        );
+      }
+      return;
+    } finally {
+      _creatingCommunity = false;
+    }
 
     if (!mounted) return;
 
@@ -2433,7 +3095,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       _selectedCommunity = community;
     });
 
-    Navigator.pop(dialogContext);
+    if (dialogContext.mounted) {
+      Navigator.pop(dialogContext);
+    }
     _showAISnackBar('Comunidade criada.');
   }
 
@@ -2453,7 +3117,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           border: Border.all(
             color: community.isFollowed
                 ? primaryCyan.withValues(alpha: 0.45)
-                : Colors.white10,
+                : AppPalette.color(context, Colors.white10),
           ),
         ),
         child: Row(
@@ -2483,7 +3147,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 4),
                   Text(
                     community.description,
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade400),
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -2493,7 +3160,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       Text(
                         '${community.members} membros',
                         style: TextStyle(
-                          color: Colors.grey.shade400,
+                          color: AppPalette.color(
+                            context,
+                            Colors.grey.shade400,
+                          ),
                           fontSize: 11,
                         ),
                       ),
@@ -2513,11 +3183,11 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: community.isFollowed
-                    ? const Color(0xFF0F171A)
+                    ? AppPalette.color(context, const Color(0xFF0F171A))
                     : primaryCyan,
                 foregroundColor: community.isFollowed
                     ? primaryCyan
-                    : Colors.black,
+                    : AppPalette.color(context, Colors.black),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -2526,7 +3196,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   vertical: 9,
                 ),
               ),
-              onPressed: () => _toggleCommunityFollow(community),
+              onPressed: _pendingCommunityFollows.contains(community.id)
+                  ? null
+                  : () => _toggleCommunityFollow(community),
               child: Text(
                 community.isFollowed ? 'Seguindo' : 'Seguir',
                 style: const TextStyle(fontSize: 12),
@@ -2552,7 +3224,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             });
           },
           style: TextButton.styleFrom(
-            foregroundColor: Colors.grey.shade400,
+            foregroundColor: AppPalette.color(context, Colors.grey.shade400),
             padding: EdgeInsets.zero,
             alignment: Alignment.centerLeft,
           ),
@@ -2600,7 +3272,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         Text(
                           '${community.members} membros • ${relatedPosts.length} posts',
                           style: TextStyle(
-                            color: Colors.grey.shade400,
+                            color: AppPalette.color(
+                              context,
+                              Colors.grey.shade400,
+                            ),
                             fontSize: 12,
                           ),
                         ),
@@ -2613,7 +3288,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               Text(
                 community.description,
                 style: TextStyle(
-                  color: Colors.grey.shade300,
+                  color: AppPalette.color(context, Colors.grey.shade300),
                   fontSize: 13,
                   height: 1.4,
                 ),
@@ -2625,17 +3300,19 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: community.isFollowed
-                            ? const Color(0xFF0F171A)
+                            ? AppPalette.color(context, const Color(0xFF0F171A))
                             : primaryCyan,
                         foregroundColor: community.isFollowed
                             ? primaryCyan
-                            : Colors.black,
+                            : AppPalette.color(context, Colors.black),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () => _toggleCommunityFollow(community),
+                      onPressed: _pendingCommunityFollows.contains(community.id)
+                          ? null
+                          : () => _toggleCommunityFollow(community),
                       icon: Icon(
                         community.isFollowed
                             ? Icons.check_rounded
@@ -2651,7 +3328,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   IconButton(
                     tooltip: 'Criar dúvida',
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F171A),
+                      backgroundColor: AppPalette.color(
+                        context,
+                        const Color(0xFF0F171A),
+                      ),
                       foregroundColor: primaryCyan,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2679,13 +3359,21 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
               decoration: BoxDecoration(
-                color: const Color(0xFF10191D),
+                color: AppPalette.color(context, const Color(0xFF10191D)),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(
+                  color: AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.08),
+                ),
               ),
               child: Text(
                 topic,
-                style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.grey.shade300),
+                  fontSize: 12,
+                ),
               ),
             );
           }).toList(),
@@ -2700,7 +3388,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             const Spacer(),
             Text(
               '${relatedPosts.length}',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade500),
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -2720,7 +3411,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
     return _allPosts.where((post) {
       return post.communityId == community.id ||
-          post.tags.any((tag) => wantedTags.contains(tag.toLowerCase()));
+          (!community.isCustom &&
+              post.communityId == null &&
+              post.tags.any((tag) => wantedTags.contains(tag.toLowerCase())));
     }).toList();
   }
 
@@ -2737,7 +3430,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       case '5':
         return ['Estudo', 'PFC', 'Projeto'];
       default:
-        return ['AI'];
+        return [];
     }
   }
 
@@ -2772,9 +3465,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     final userPosts = _currentUserPosts();
     final userComments = _currentUserComments();
     final followedCommunities = _followedCommunities();
-    final aiQuestionCount = _chatMessages.where((message) {
-      return message.isUser;
-    }).length;
+    final aiQuestionCount = _conversations.length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
@@ -2787,6 +3478,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             followedCommunities.length,
             aiQuestionCount,
           ),
+          if (_databaseService.isUsingFirebase)
+            EmailVerificationPanel(
+              key: ValueKey('verification-${_activeUser.id}'),
+              email: _activeUser.email,
+              refresh: FirebaseBackendService().refreshEmailVerification,
+              send: FirebaseBackendService().sendEmailVerification,
+            ),
           const SizedBox(height: 16),
           _buildProfileActivityGrid(
             userPosts.length,
@@ -2799,6 +3497,28 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             title: 'Minhas dúvidas',
             emptyText: 'Você ainda não publicou dúvidas.',
             children: userPosts.take(3).map(_buildProfilePostTile).toList(),
+          ),
+          const SizedBox(height: 18),
+          _buildProfileActivitySection(
+            title: 'Publicações salvas',
+            emptyText: 'Você ainda não salvou publicações.',
+            children: _allPosts
+                .where((post) => post.isFavorited)
+                .take(3)
+                .map(_buildProfilePostTile)
+                .toList(),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() {
+                _selectedIndex = 0;
+                _selectedTagIndex = 0;
+                _feedStatus = 'saved';
+              }),
+              icon: const Icon(Icons.bookmarks_outlined),
+              label: const Text('Ver publicações salvas'),
+            ),
           ),
           const SizedBox(height: 18),
           _buildProfileActivitySection(
@@ -2821,7 +3541,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
   List<Post> _currentUserPosts() {
     return _allPosts.where((post) {
-      return post.id.startsWith('user-') || post.username == _activeUser.name;
+      if (post.authorId != null) {
+        return post.authorId == _activeUser.id;
+      }
+
+      if (post.authorEmail != null) {
+        return post.authorEmail == _activeUser.email;
+      }
+
+      return post.username == _activeUser.name &&
+          post.userHandle == _activeUser.username;
     }).toList();
   }
 
@@ -2878,7 +3607,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: Colors.grey.shade400,
+                        color: AppPalette.color(context, Colors.grey.shade400),
                         fontSize: 12,
                       ),
                     ),
@@ -2898,7 +3627,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               IconButton(
                 tooltip: 'Sair',
                 onPressed: widget.onSignOut,
-                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                icon: Icon(
+                  Icons.logout_rounded,
+                  color: AppPalette.color(context, Colors.redAccent),
+                ),
               ),
             ],
           ),
@@ -2920,11 +3652,32 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     );
   }
 
+  bool _savingPhoto = false;
+  final Map<String, Stream<String?>> _authorPhotoStreams = {};
+
+  Widget _buildAuthorAvatar(String authorId, {double radius = 18}) {
+    return AuthorAvatar(
+      key: ValueKey('avatar-$authorId'),
+      radius: radius,
+      color: primaryCyan,
+      photo: authorId == _activeUser.id ? _activeUser.photoBase64 : null,
+      photos: authorId.isEmpty || authorId == _activeUser.id
+          ? null
+          : _authorPhotoStreams.putIfAbsent(
+              authorId,
+              () => _databaseService.watchAuthorPhoto(authorId),
+            ),
+    );
+  }
+
   Widget _buildProfileAvatar({required double radius, bool editable = false}) {
     final photoBytes = _profilePhotoBytes();
 
     return GestureDetector(
-      onTap: editable ? _pickProfilePhoto : null,
+      behavior: HitTestBehavior.opaque,
+      onTap: editable && !_savingPhoto && !_savingProfile
+          ? _pickProfilePhoto
+          : null,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -2934,25 +3687,30 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             backgroundImage: photoBytes == null
                 ? null
                 : MemoryImage(photoBytes),
-            child: photoBytes == null
+            child: _savingPhoto
+                ? const CircularProgressIndicator(strokeWidth: 2)
+                : photoBytes == null
                 ? Icon(Icons.person, size: radius, color: primaryCyan)
                 : null,
           ),
           if (editable)
             Positioned(
-              right: -2,
-              bottom: -2,
+              right: 0,
+              bottom: 0,
               child: Container(
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
                   color: primaryCyan,
                   shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF162126), width: 2),
+                  border: Border.all(
+                    color: AppPalette.color(context, const Color(0xFF162126)),
+                    width: 2,
+                  ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.camera_alt_rounded,
-                  color: Colors.black,
+                  color: AppPalette.color(context, Colors.black),
                   size: 13,
                 ),
               ),
@@ -2974,7 +3732,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _pickProfilePhoto() async {
-    if (_activeUser.isGuest) return;
+    if (_activeUser.isGuest || _savingPhoto || _savingProfile) return;
+    setState(() => _savingPhoto = true);
 
     try {
       final result = await FilePicker.pickFiles(
@@ -2983,7 +3742,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         type: FileType.image,
       );
 
-      if (result == null || result.files.isEmpty) return;
+      if (!mounted || result == null || result.files.isEmpty) return;
 
       final file = result.files.single;
       final bytes = file.bytes;
@@ -2992,18 +3751,63 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         return;
       }
 
-      if (bytes.length > 600 * 1024) {
-        _showAISnackBar('Foto muito grande. Use uma imagem com até 600 KB.');
-        return;
+      final prepared = await ProfilePhotoService.prepare(bytes);
+      if (!mounted) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Atualizar foto de perfil?'),
+          content: SizedBox(
+            width: 260,
+            height: 220,
+            child: Center(
+              child: CircleAvatar(
+                radius: 90,
+                backgroundImage: MemoryImage(prepared),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Salvar foto'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true || !mounted) return;
+      final encoded = base64Encode(prepared);
+      await _databaseService.updateProfilePhoto(encoded);
+      if (!mounted) return;
+      setState(() {
+        _activeUser = LocalAuthUser(
+          id: _activeUser.id,
+          name: _activeUser.name,
+          username: _activeUser.username,
+          email: _activeUser.email,
+          photoBase64: encoded,
+        );
+      });
+      _showAISnackBar('Foto de perfil atualizada.');
+    } on FormatException catch (error) {
+      if (mounted) _showAISnackBar(error.message);
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível atualizar a foto. Tente uma imagem JPG ou PNG e confira sua conexão.',
+        );
       }
-
-      await _saveProfileChanges(photoBase64: base64Encode(bytes));
-    } catch (error) {
-      _showAISnackBar('Erro ao selecionar foto: $error');
+    } finally {
+      if (mounted) setState(() => _savingPhoto = false);
     }
   }
 
   Future<void> _saveProfileChanges({String? photoBase64}) async {
+    if (_savingProfile || _savingPhoto) return;
     final name = _profileNameController.text.trim();
     final username = _normalizeUsername(_profileUsernameController.text);
 
@@ -3017,21 +3821,36 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       return;
     }
 
-    final updatedUser = await _databaseService.updateCurrentUserProfile(
-      name: name,
-      username: username,
-      photoBase64: photoBase64 ?? _activeUser.photoBase64,
-    );
+    setState(() => _savingProfile = true);
+    LocalAuthUser? updatedUser;
+    try {
+      updatedUser = await _databaseService.updateCurrentUserProfile(
+        name: name,
+        username: username,
+        photoBase64: photoBase64 ?? _activeUser.photoBase64,
+      );
+    } catch (_) {
+      if (mounted) {
+        _showAISnackBar(
+          'Não foi possível salvar o perfil. Os campos foram mantidos para tentar novamente.',
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _savingProfile = false);
+    }
+    if (!mounted) return;
 
     if (updatedUser == null) {
       _showAISnackBar('Não consegui salvar o perfil agora.');
       return;
     }
 
+    final savedUser = updatedUser;
     setState(() {
-      _activeUser = updatedUser;
-      _profileNameController.text = updatedUser.name;
-      _profileUsernameController.text = updatedUser.username;
+      _activeUser = savedUser;
+      _profileNameController.text = savedUser.name;
+      _profileUsernameController.text = savedUser.username;
       _profileEditing = false;
     });
 
@@ -3064,7 +3883,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.grey.shade500),
+            fontSize: 10,
+          ),
         ),
       ],
     );
@@ -3112,9 +3934,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         constraints: const BoxConstraints(minHeight: 92),
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: const Color(0xFF10191D),
+          color: AppPalette.color(context, const Color(0xFF10191D)),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -3133,7 +3960,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade500),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
@@ -3164,19 +3994,32 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: children.isEmpty
               ? Text(
                   emptyText,
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  style: TextStyle(
+                    color: AppPalette.color(context, Colors.grey.shade400),
+                    fontSize: 12,
+                  ),
                 )
               : Column(
                   children: [
                     for (int i = 0; i < children.length; i++) ...[
                       children[i],
                       if (i < children.length - 1)
-                        Divider(color: Colors.white.withValues(alpha: 0.06)),
+                        Divider(
+                          color: AppPalette.color(
+                            context,
+                            Colors.white,
+                          ).withValues(alpha: 0.06),
+                        ),
                     ],
                   ],
                 ),
@@ -3211,12 +4054,18 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 3),
                   Text(
                     '${_visibleCommentCount(post)} comentários • ${post.timeAgo}',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade500),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade600),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppPalette.color(context, Colors.grey.shade600),
+            ),
           ],
         ),
       ),
@@ -3266,13 +4115,19 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     relatedPost?.title ?? 'Discussão salva',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade500),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
             ),
             if (relatedPost != null)
-              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade600),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppPalette.color(context, Colors.grey.shade600),
+              ),
           ],
         ),
       ),
@@ -3309,14 +4164,20 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       Text(
                         '${community.members} membros',
                         style: TextStyle(
-                          color: Colors.grey.shade500,
+                          color: AppPalette.color(
+                            context,
+                            Colors.grey.shade500,
+                          ),
                           fontSize: 11,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade600),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppPalette.color(context, Colors.grey.shade600),
+                ),
               ],
             ),
           ),
@@ -3343,7 +4204,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: Column(
             children: [
@@ -3358,7 +4224,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   });
                 },
               ),
-              Divider(color: Colors.white.withValues(alpha: 0.06)),
+              Divider(
+                color: AppPalette.color(
+                  context,
+                  Colors.white,
+                ).withValues(alpha: 0.06),
+              ),
               _buildProfileAccessTile(
                 icon: Icons.home_work_outlined,
                 title: 'Endereço',
@@ -3415,12 +4286,18 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade500),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade600),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: AppPalette.color(context, Colors.grey.shade600),
+            ),
           ],
         ),
       ),
@@ -3444,44 +4321,34 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             children: [
               IconButton(
                 tooltip: 'Voltar ao perfil',
-                onPressed: () {
-                  setState(() {
-                    _selectedProfileSection = null;
-                    _profileEditing = false;
-                  });
-                },
+                onPressed: _savingProfile
+                    ? null
+                    : () {
+                        if (_profileEditing) _cancelProfileEditing();
+                        setState(() {
+                          _selectedProfileSection = null;
+                          _profileEditing = false;
+                        });
+                      },
                 icon: Icon(Icons.arrow_back_rounded, color: primaryCyan),
               ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  title,
+                  _profileEditing ? 'Editar ${title.toLowerCase()}' : title,
                   style: GoogleFonts.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              TextButton.icon(
-                onPressed: () async {
-                  if (_profileEditing) {
-                    await _saveProfileChanges();
-                    return;
-                  }
-
-                  setState(() {
-                    _profileEditing = true;
-                  });
-                },
-                icon: Icon(
-                  _profileEditing
-                      ? Icons.check_circle_rounded
-                      : Icons.edit_rounded,
-                  size: 17,
+              if (!_profileEditing)
+                TextButton.icon(
+                  onPressed: _savingProfile ? null : _beginProfileEditing,
+                  icon: const Icon(Icons.edit_rounded, size: 17),
+                  label: const Text('Editar'),
+                  style: TextButton.styleFrom(foregroundColor: primaryCyan),
                 ),
-                label: Text(_profileEditing ? 'Concluir' : 'Editar'),
-                style: TextButton.styleFrom(foregroundColor: primaryCyan),
-              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -3508,7 +4375,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   child: Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.grey.shade300,
+                      color: AppPalette.color(context, Colors.grey.shade300),
                       fontSize: 13,
                       height: 1.35,
                     ),
@@ -3528,10 +4395,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Foto de perfil',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppPalette.color(context, Colors.white),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -3539,7 +4406,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         Text(
                           'Clique na foto para trocar.',
                           style: TextStyle(
-                            color: Colors.grey.shade500,
+                            color: AppPalette.color(
+                              context,
+                              Colors.grey.shade500,
+                            ),
                             fontSize: 12,
                           ),
                         ),
@@ -3613,6 +4483,44 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 enabled: _profileEditing,
               ),
             ]),
+          if (_profileEditing) ...[
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.icon(
+                  onPressed: _savingProfile
+                      ? null
+                      : () => _saveProfileChanges(),
+                  icon: _savingProfile
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_rounded),
+                  label: Text(
+                    _savingProfile ? 'Salvando...' : 'Salvar alterações',
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: primaryCyan,
+                    foregroundColor: AppPalette.color(context, Colors.black),
+                    minimumSize: const Size(160, 48),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _savingProfile ? null : _cancelProfileEditing,
+                  icon: const Icon(Icons.close_rounded),
+                  label: const Text('Cancelar'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppPalette.color(context, Colors.white70),
+                    minimumSize: const Size(120, 48),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -3659,7 +4567,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 'Você está navegando como visitante. Com uma conta, suas dúvidas e interações ficam salvas para continuar depois.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.grey.shade400,
+                  color: AppPalette.color(context, Colors.grey.shade400),
                   fontSize: 13,
                   height: 1.45,
                 ),
@@ -3684,7 +4592,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryCyan,
-                    foregroundColor: Colors.black,
+                    foregroundColor: AppPalette.color(context, Colors.black),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -3704,9 +4612,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF10191D),
+            color: AppPalette.color(context, const Color(0xFF10191D)),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: Row(
             children: [
@@ -3715,7 +4628,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               Expanded(
                 child: Text(
                   'Você ainda pode usar o chat com IA e visualizar comunidades sem conta.',
-                  style: TextStyle(color: Colors.grey.shade300, fontSize: 12),
+                  style: TextStyle(
+                    color: AppPalette.color(context, Colors.grey.shade300),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -3735,7 +4651,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: Colors.grey.shade200, fontSize: 13),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade200),
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -3751,8 +4670,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           children: [
             Text(
               '📍 CEP *',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.white),
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
@@ -3768,17 +4687,22 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 enabled: _profileEditing,
                 maxLength: 8,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.white),
+                ),
                 decoration: InputDecoration(
                   hintText: '00000000',
                   hintStyle: TextStyle(
-                    color: Colors.grey.withValues(alpha: 0.5),
+                    color: AppPalette.color(
+                      context,
+                      Colors.grey,
+                    ).withValues(alpha: 0.5),
                   ),
                   filled: true,
-                  fillColor: const Color(0xFF0F171A),
-                  prefixIcon: const Icon(
+                  fillColor: AppPalette.color(context, const Color(0xFF0F171A)),
+                  prefixIcon: Icon(
                     Icons.location_on,
-                    color: Colors.orange,
+                    color: AppPalette.color(context, Colors.orange),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -3812,7 +4736,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     color: _profileCepController.text.length == 8
                         ? primaryCyan
-                        : Colors.grey.withValues(alpha: 0.3),
+                        : AppPalette.color(
+                            context,
+                            Colors.grey,
+                          ).withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: _cepLoading
@@ -3823,16 +4750,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
                               _profileCepController.text.length == 8
-                                  ? Colors.black
-                                  : Colors.grey,
+                                  ? AppPalette.color(context, Colors.black)
+                                  : AppPalette.color(context, Colors.grey),
                             ),
                           ),
                         )
                       : Icon(
                           Icons.search,
                           color: _profileCepController.text.length == 8
-                              ? Colors.black
-                              : Colors.grey,
+                              ? AppPalette.color(context, Colors.black)
+                              : AppPalette.color(context, Colors.grey),
                         ),
                 ),
               ),
@@ -3843,14 +4770,20 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               _cepError!,
-              style: const TextStyle(color: Colors.red, fontSize: 12),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.red),
+                fontSize: 12,
+              ),
             ),
           ),
         const SizedBox(height: 8),
         Text(
           '* Campo obrigatório - Consulte seu CEP para autopreenchimento de endereço',
           style: TextStyle(
-            color: Colors.orange.withValues(alpha: 0.7),
+            color: AppPalette.color(
+              context,
+              Colors.orange,
+            ).withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),
@@ -3861,13 +4794,55 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
   // ============= AI CONVERSATION CONTENT =============
 
   Widget _buildAIConversationContent() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1000) return _buildAIConversationBody();
+        return Row(
+          children: [
+            SizedBox(width: 260, child: _conversationList()),
+            const VerticalDivider(width: 1),
+            Expanded(child: _buildAIConversationBody()),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAIConversationBody() {
     return Column(
       children: [
         _buildAIChatToolbar(),
+        if (!_historyReady || _historyUnsaved)
+          ListTile(
+            dense: true,
+            title: Text(
+              _historyConflict
+                  ? 'Histórico alterado em outra aba'
+                  : _historyUnsaved
+                  ? 'Histórico não sincronizado'
+                  : _historyBusy
+                  ? 'Carregando histórico'
+                  : 'Histórico indisponível',
+            ),
+            trailing: _historyBusy
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : IconButton(
+                    tooltip: _historyUnsaved
+                        ? 'Tentar salvar novamente'
+                        : 'Tentar carregar novamente',
+                    onPressed: _retryHistory,
+                    icon: const Icon(Icons.refresh),
+                  ),
+          ),
         Expanded(
           child: _chatMessages.isEmpty
               ? _buildAIEmptyState()
               : ListView.builder(
+                  controller: _chatScrollController,
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                   itemCount: _chatMessages.length,
                   itemBuilder: (context, index) {
@@ -3877,26 +4852,60 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                        margin: const EdgeInsets.only(bottom: 24),
+                        padding: const EdgeInsets.all(16),
                         constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.82,
+                          maxWidth: (MediaQuery.sizeOf(context).width * 0.88)
+                              .clamp(0, 840)
+                              .toDouble(),
                         ),
                         decoration: BoxDecoration(
                           color: message.isUser
                               ? primaryCyan
-                              : const Color(0xFF10191D),
-                          borderRadius: BorderRadius.circular(14),
-                          border: !message.isUser
-                              ? Border.all(
-                                  color: Colors.white.withValues(alpha: 0.06),
-                                )
-                              : null,
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildChatMessageContent(message),
+                            if (message.isError &&
+                                index > 0 &&
+                                _chatMessages[index - 1].isUser)
+                              TextButton.icon(
+                                onPressed: _isLoadingAI || _historyBusy
+                                    ? null
+                                    : () {
+                                        final previous =
+                                            _chatMessages[index - 1];
+                                        _aiMessageController.text =
+                                            previous.text;
+                                        setState(() {
+                                          _aiContextAttachments
+                                            ..clear()
+                                            ..addAll(
+                                              previous.attachments.where(
+                                                (a) =>
+                                                    a.hasFile ||
+                                                    !a.content.startsWith(
+                                                      'Anexo de uma mensagem anterior.',
+                                                    ),
+                                              ),
+                                            );
+                                        });
+                                        _showAISnackBar(
+                                          previous.attachments.any(
+                                                (a) => a.content.startsWith(
+                                                  'Anexo de uma mensagem anterior.',
+                                                ),
+                                              )
+                                              ? 'Pergunta recuperada. Reanexe os arquivos antes de enviar.'
+                                              : 'Pergunta recuperada. Revise e envie novamente.',
+                                        );
+                                      },
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Revisar e tentar novamente'),
+                              ),
                             if (!message.isUser) ...[
                               Align(
                                 alignment: Alignment.centerRight,
@@ -3920,7 +4929,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                   },
                                   icon: Icon(
                                     Icons.copy_rounded,
-                                    color: Colors.grey.shade500,
+                                    color: AppPalette.color(
+                                      context,
+                                      Colors.grey.shade500,
+                                    ),
                                     size: 15,
                                   ),
                                 ),
@@ -3948,8 +4960,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           if (message.text.trim().isNotEmpty)
             Text(
               message.text,
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.black),
                 fontSize: 14,
                 height: 1.35,
               ),
@@ -3962,6 +4974,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       );
     }
 
+    if (identical(message, _revealingMessage)) {
+      return AnimatedBuilder(
+        animation: _responseReveal,
+        builder: (context, child) => AIResponseBody(
+          text: _responseReveal.text,
+          isRevealing: _responseReveal.isRevealing,
+        ),
+      );
+    }
     return _buildFormattedAIResponse(message.text);
   }
 
@@ -3975,9 +4996,17 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           height: 92,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: AppPalette.color(
+              context,
+              Colors.black,
+            ).withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.1)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.black,
+              ).withValues(alpha: 0.1),
+            ),
           ),
           child: Stack(
             children: [
@@ -3985,10 +5014,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 child: attachment.isImage && attachment.bytes != null
                     ? Image.memory(attachment.bytes!, fit: BoxFit.cover)
                     : Container(
-                        color: Colors.black.withValues(alpha: 0.12),
+                        color: AppPalette.color(
+                          context,
+                          Colors.black,
+                        ).withValues(alpha: 0.12),
                         child: Icon(
                           attachment.icon,
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: AppPalette.color(
+                            context,
+                            Colors.black,
+                          ).withValues(alpha: 0.7),
                           size: 32,
                         ),
                       ),
@@ -4039,9 +5074,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       margin: const EdgeInsets.fromLTRB(14, 4, 14, 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF10191D),
+        color: AppPalette.color(context, const Color(0xFF10191D)),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: AppPalette.color(
+            context,
+            Colors.white,
+          ).withValues(alpha: 0.06),
+        ),
       ),
       child: Row(
         children: [
@@ -4071,7 +5111,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   child: Text(
                     step,
                     style: TextStyle(
-                      color: Colors.grey.shade300,
+                      color: AppPalette.color(context, Colors.grey.shade300),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -4085,180 +5125,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFormattedAIResponse(String text) {
-    final lines = text.split('\n');
-    final widgets = <Widget>[];
-    final codeBuffer = <String>[];
-    var isInsideCodeBlock = false;
-
-    for (final rawLine in lines) {
-      final line = rawLine.trimRight();
-      final trimmed = line.trim();
-
-      if (trimmed.startsWith('```')) {
-        if (isInsideCodeBlock) {
-          widgets.add(_buildAITextCodeBlock(codeBuffer.join('\n')));
-          codeBuffer.clear();
-        }
-        isInsideCodeBlock = !isInsideCodeBlock;
-        continue;
-      }
-
-      if (isInsideCodeBlock) {
-        codeBuffer.add(line);
-        continue;
-      }
-
-      if (trimmed.isEmpty) {
-        if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 8));
-        continue;
-      }
-
-      if (trimmed.startsWith('###')) {
-        widgets.add(
-          _buildAIHeading(
-            trimmed.replaceFirst(RegExp(r'^#+\s*'), ''),
-            small: true,
-          ),
-        );
-      } else if (trimmed.startsWith('##') || trimmed.startsWith('#')) {
-        widgets.add(
-          _buildAIHeading(trimmed.replaceFirst(RegExp(r'^#+\s*'), '')),
-        );
-      } else if (_isBulletLine(trimmed)) {
-        widgets.add(
-          _buildAIBullet(trimmed.replaceFirst(RegExp(r'^[-*•]\s*'), '')),
-        );
-      } else if (RegExp(r'^\d+\.\s+').hasMatch(trimmed)) {
-        final match = RegExp(r'^(\d+\.)\s+(.*)$').firstMatch(trimmed);
-        widgets.add(
-          _buildAINumberedItem(
-            match?.group(1) ?? '',
-            match?.group(2) ?? trimmed,
-          ),
-        );
-      } else {
-        widgets.add(_buildAIParagraph(trimmed));
-      }
-    }
-
-    if (codeBuffer.isNotEmpty) {
-      widgets.add(_buildAITextCodeBlock(codeBuffer.join('\n')));
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
-    );
-  }
-
-  bool _isBulletLine(String text) {
-    return text.startsWith('- ') ||
-        text.startsWith('* ') ||
-        text.startsWith('• ');
-  }
-
-  Widget _buildAIHeading(String text, {bool small = false}) {
-    return Padding(
-      padding: EdgeInsets.only(top: small ? 6 : 8, bottom: 6),
-      child: Text(
-        _cleanMarkdownInline(text),
-        style: TextStyle(
-          color: primaryCyan,
-          fontSize: small ? 14 : 15,
-          height: 1.25,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAIParagraph(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: SelectableText(
-        _cleanMarkdownInline(text),
-        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.45),
-      ),
-    );
-  }
-
-  Widget _buildAIBullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.only(top: 8, right: 9),
-            decoration: BoxDecoration(
-              color: primaryCyan,
-              shape: BoxShape.circle,
-            ),
-          ),
-          Expanded(child: _buildAIParagraph(text)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAINumberedItem(String number, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            number,
-            style: TextStyle(
-              color: primaryCyan,
-              fontWeight: FontWeight.bold,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(child: _buildAIParagraph(text)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAITextCodeBlock(String code) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 6, bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF091013),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: primaryCyan.withValues(alpha: 0.16)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SelectableText(
-          code.trimRight(),
-          style: GoogleFonts.firaCode(
-            color: Colors.greenAccent,
-            fontSize: 12,
-            height: 1.45,
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _cleanMarkdownInline(String text) {
-    return text
-        .replaceAllMapped(
-          RegExp(r'\*\*(.*?)\*\*'),
-          (match) => match.group(1) ?? '',
-        )
-        .replaceAllMapped(RegExp(r'__(.*?)__'), (match) => match.group(1) ?? '')
-        .replaceAllMapped(RegExp(r'`([^`]*)`'), (match) => match.group(1) ?? '')
-        .trim();
-  }
+  Widget _buildFormattedAIResponse(String text) => AIResponseBody(text: text);
 
   Widget _buildAIChatToolbar() {
     final savedQuestionCount = _chatMessages.where((message) {
@@ -4268,9 +5135,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B1215),
+        color: AppPalette.color(context, const Color(0xFF0B1215)),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          bottom: BorderSide(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
       ),
       child: Row(
@@ -4290,7 +5162,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Assistente DevStack',
+                  _chatMessages.isEmpty
+                      ? 'Nova conversa'
+                      : ChatConversationService.titleFor(
+                          _chatMessages.map((m) => m.toJson()).toList(),
+                        ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
@@ -4298,11 +5176,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 ),
                 Text(
                   savedQuestionCount == 0
-                      ? 'Histórico salvo por usuário'
+                      ? (_activeUser.isGuest
+                            ? 'Conversa temporária'
+                            : 'Histórico por conta')
                       : '$savedQuestionCount pergunta(s) neste histórico',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                  style: TextStyle(
+                    color: AppPalette.color(context, Colors.grey.shade500),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -4312,123 +5195,117 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             onPressed: _showAIHistorySheet,
             icon: Icon(
               Icons.history_rounded,
-              color: _chatMessages.isEmpty ? Colors.grey : primaryCyan,
+              color: _chatMessages.isEmpty
+                  ? AppPalette.color(context, Colors.grey)
+                  : primaryCyan,
               size: 21,
             ),
           ),
           if (_chatMessages.isNotEmpty)
             IconButton(
               tooltip: 'Limpar conversa',
-              onPressed: _clearAIChatHistory,
-              icon: const Icon(Icons.delete_outline, color: Colors.grey),
+              onPressed: _isLoadingAI || _historyBusy || !_historyReady
+                  ? null
+                  : _clearAIChatHistory,
+              icon: Icon(
+                Icons.delete_outline,
+                color: AppPalette.color(context, Colors.grey),
+              ),
             ),
         ],
       ),
     );
   }
 
-  void _showAIHistorySheet() {
-    final recentQuestions = _chatMessages
-        .where((message) => message.isUser)
-        .toList()
-        .reversed
-        .take(8)
-        .toList();
+  Widget _conversationList({BuildContext? sheetContext}) => ConversationList(
+    conversations: _conversations,
+    selectedId: _conversationId,
+    enabled:
+        _historyReady && !_historyBusy && !_isLoadingAI && !_historyUnsaved,
+    onNew: () {
+      if (sheetContext != null) Navigator.pop(sheetContext);
+      _openConversation(_conversationsService.newId());
+    },
+    onSelect: (id) {
+      if (sheetContext != null) Navigator.pop(sheetContext);
+      _openConversation(id);
+    },
+  );
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0B1215),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.history_rounded, color: primaryCyan),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        'Histórico da IA',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _activeUser.isGuest
-                      ? 'No modo visitante, o histórico fica salvo somente neste navegador.'
-                      : 'Este histórico pertence à conta ${_activeUser.email}.',
-                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
-                ),
-                const SizedBox(height: 14),
-                if (recentQuestions.isEmpty)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      'Nenhuma conversa salva ainda.',
-                      style: TextStyle(color: Colors.grey.shade300),
-                    ),
-                  )
-                else
-                  ...recentQuestions.map((message) {
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                        _aiMessageController.text = message.text;
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.06),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline_rounded,
-                              color: primaryCyan,
-                              size: 17,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                message.text,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-              ],
-            ),
+  Future<void> _openConversation(String id) async {
+    if (_historyBusy ||
+        _isLoadingAI ||
+        _historyUnsaved ||
+        !_historyReady ||
+        id == _conversationId) {
+      return;
+    }
+    if (_aiMessageController.text.trim().isNotEmpty ||
+        _aiContextAttachments.isNotEmpty) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Trocar de conversa?'),
+          content: const Text(
+            'O rascunho e os anexos ainda não enviados serão descartados.',
           ),
-        );
-      },
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Continuar'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !mounted) return;
+    }
+    final previousId = _conversationId;
+    _conversationId = id;
+    setState(() => _historyReady = false);
+    await _loadAIChatHistory();
+    if (!mounted) return;
+    if (!_historyReady) {
+      _conversationId = previousId;
+      setState(() => _historyReady = true);
+      return;
+    }
+    _aiMessageController.clear();
+    setState(() {
+      _aiContextAttachments.clear();
+      _selectedIndex = 3;
+      _selectedPost = null;
+      _isShowingSearch = false;
+      _isShowingNotifications = false;
+    });
+    _scrollToLatestAIMessage();
+  }
+
+  void _showAIHistorySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .8,
+          child: Column(
+            children: [
+              ListTile(
+                title: const Text('Conversas com a IA'),
+                trailing: IconButton(
+                  tooltip: 'Fechar',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(sheetContext),
+                ),
+              ),
+              Expanded(child: _conversationList(sheetContext: sheetContext)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -4459,121 +5336,86 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(18, 28, 18, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFF10191D),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: primaryCyan.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 30,
-                    color: primaryCyan,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Assistente pronto para ajudar',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  'Escolha um modelo abaixo, complete com seus detalhes e envie. Assim a IA responde com contexto de verdade.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey.shade400,
-                    fontSize: 12,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Comece com um modelo',
-            style: TextStyle(
-              color: Colors.grey.shade300,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 9),
-          ...suggestions.map((suggestion) {
-            return _buildAIPromptSuggestion(
-              title: suggestion['title']! as String,
-              subtitle: suggestion['subtitle']! as String,
-              icon: suggestion['icon']! as IconData,
-              template: suggestion['template']! as String,
-            );
-          }),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: primaryCyan.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: primaryCyan.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.attach_file_rounded, color: primaryCyan, size: 19),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Você também pode anexar contexto, código, enunciado ou imagem antes de enviar.',
-                    style: TextStyle(
-                      color: Colors.grey.shade300,
-                      fontSize: 12,
-                      height: 1.35,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: primaryCyan.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 30,
+                        color: primaryCyan,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Como posso ajudar?',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth >= 600
+                      ? (constraints.maxWidth - 24) / 3
+                      : constraints.maxWidth;
+                  return Wrap(
+                    spacing: 12,
+                    children: suggestions.map((suggestion) {
+                      return SizedBox(
+                        width: width,
+                        child: _buildAIPromptSuggestion(
+                          title: suggestion['title']! as String,
+                          icon: suggestion['icon']! as IconData,
+                          template: suggestion['template']! as String,
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              Align(
+                alignment: Alignment.center,
+                child: TextButton.icon(
                   onPressed: _showAIContextSheet,
-                  child: Text(
-                    'Anexar',
-                    style: TextStyle(
-                      color: primaryCyan,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  icon: const Icon(Icons.attach_file_rounded, size: 18),
+                  label: const Text('Anexar arquivo'),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildAIPromptSuggestion({
     required String title,
-    required String subtitle,
     required IconData icon,
     required String template,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 9),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         onTap: _isLoadingAI
             ? null
             : () {
@@ -4582,9 +5424,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         child: Container(
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F171A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            color: AppPalette.color(context, const Color(0xFF0F171A)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: Row(
             children: [
@@ -4604,19 +5451,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppPalette.color(context, Colors.white),
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
-                        height: 1.3,
                       ),
                     ),
                   ],
@@ -4624,7 +5462,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               ),
               Icon(
                 Icons.edit_rounded,
-                color: Colors.grey.withValues(alpha: 0.55),
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.55),
                 size: 17,
               ),
             ],
@@ -4673,8 +5514,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               padding: EdgeInsets.only(bottom: bottomInset),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF101A1F),
+                decoration: BoxDecoration(
+                  color: AppPalette.color(context, Color(0xFF101A1F)),
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: SafeArea(
@@ -4706,7 +5547,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                   Text(
                                     'Anexar contexto',
                                     style: GoogleFonts.poppins(
-                                      color: Colors.white,
+                                      color: AppPalette.color(
+                                        context,
+                                        Colors.white,
+                                      ),
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -4714,7 +5558,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                   Text(
                                     'Organize o material antes de enviar para a IA.',
                                     style: TextStyle(
-                                      color: Colors.grey.shade400,
+                                      color: AppPalette.color(
+                                        context,
+                                        Colors.grey.shade400,
+                                      ),
                                       fontSize: 12,
                                     ),
                                   ),
@@ -4756,10 +5603,16 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: AppPalette.color(
+                              context,
+                              Colors.white,
+                            ).withValues(alpha: 0.04),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.06),
+                              color: AppPalette.color(
+                                context,
+                                Colors.white,
+                              ).withValues(alpha: 0.06),
                             ),
                           ),
                           child: Row(
@@ -4775,7 +5628,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                                 child: Text(
                                   'Você também pode copiar uma imagem e usar Ctrl + V nesta aba. Se o botão Abrir ficar desabilitado, baixe o arquivo do OneDrive antes.',
                                   style: TextStyle(
-                                    color: Colors.grey.shade400,
+                                    color: AppPalette.color(
+                                      context,
+                                      Colors.grey.shade400,
+                                    ),
                                     fontSize: 11,
                                     height: 1.35,
                                   ),
@@ -4789,7 +5645,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           children: [
                             Expanded(
                               child: Divider(
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: AppPalette.color(
+                                  context,
+                                  Colors.white,
+                                ).withValues(alpha: 0.1),
                               ),
                             ),
                             Padding(
@@ -4799,14 +5658,20 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                               child: Text(
                                 'ou cole manualmente',
                                 style: TextStyle(
-                                  color: Colors.grey.shade500,
+                                  color: AppPalette.color(
+                                    context,
+                                    Colors.grey.shade500,
+                                  ),
                                   fontSize: 11,
                                 ),
                               ),
                             ),
                             Expanded(
                               child: Divider(
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: AppPalette.color(
+                                  context,
+                                  Colors.white,
+                                ).withValues(alpha: 0.1),
                               ),
                             ),
                           ],
@@ -4853,9 +5718,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             Expanded(
                               child: OutlinedButton(
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.grey.shade300,
+                                  foregroundColor: AppPalette.color(
+                                    context,
+                                    Colors.grey.shade300,
+                                  ),
                                   side: BorderSide(
-                                    color: Colors.white.withValues(alpha: 0.12),
+                                    color: AppPalette.color(
+                                      context,
+                                      Colors.white,
+                                    ).withValues(alpha: 0.12),
                                   ),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
@@ -4873,7 +5744,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: primaryCyan,
-                                  foregroundColor: Colors.black,
+                                  foregroundColor: AppPalette.color(
+                                    context,
+                                    Colors.black,
+                                  ),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
@@ -4949,12 +5823,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: isSelected
               ? primaryCyan.withValues(alpha: 0.16)
-              : const Color(0xFF0B1215),
+              : AppPalette.color(context, const Color(0xFF0B1215)),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: isSelected
                 ? primaryCyan
-                : Colors.white.withValues(alpha: 0.08),
+                : AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.08),
           ),
         ),
         child: Row(
@@ -4962,14 +5839,18 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           children: [
             Icon(
               icon,
-              color: isSelected ? primaryCyan : Colors.grey.shade400,
+              color: isSelected
+                  ? primaryCyan
+                  : AppPalette.color(context, Colors.grey.shade400),
               size: 16,
             ),
             const SizedBox(width: 7),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? primaryCyan : Colors.grey.shade300,
+                color: isSelected
+                    ? primaryCyan
+                    : AppPalette.color(context, Colors.grey.shade300),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -4992,7 +5873,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         constraints: const BoxConstraints(minHeight: 104),
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: const Color(0xFF0B1215),
+          color: AppPalette.color(context, const Color(0xFF0B1215)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: primaryCyan.withValues(alpha: 0.18)),
         ),
@@ -5012,8 +5893,8 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             const SizedBox(height: 14),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.white),
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
               ),
@@ -5021,7 +5902,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             const SizedBox(height: 3),
             Text(
               subtitle,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade500),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
@@ -5042,7 +5926,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         Text(
           label,
           style: TextStyle(
-            color: Colors.grey.shade300,
+            color: AppPalette.color(context, Colors.grey.shade300),
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -5050,18 +5934,28 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1215),
+            color: AppPalette.color(context, const Color(0xFF0B1215)),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
           child: TextField(
             controller: controller,
             minLines: minLines,
             maxLines: maxLines,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppPalette.color(context, Colors.white)),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.55)),
+              hintStyle: TextStyle(
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.55),
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.all(14),
             ),
@@ -5266,7 +6160,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           behavior: SnackBarBehavior.floating,
           margin: EdgeInsets.only(left: 16, right: 16, bottom: bottomOffset),
           duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF10191D),
+          backgroundColor: AppPalette.color(context, const Color(0xFF10191D)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(color: primaryCyan.withValues(alpha: 0.18)),
@@ -5283,7 +6177,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      color: const Color(0xFF0B1215),
+      color: AppPalette.color(context, const Color(0xFF0B1215)),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -5294,9 +6188,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               margin: const EdgeInsets.only(right: 10),
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F171A),
+                color: AppPalette.color(context, const Color(0xFF0F171A)),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+                border: Border.all(
+                  color: AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.07),
+                ),
               ),
               child: Stack(
                 children: [
@@ -5380,9 +6279,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF0B1215),
+          color: AppPalette.color(context, const Color(0xFF0B1215)),
           border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+            top: BorderSide(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
         ),
         child: Row(
@@ -5392,9 +6296,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFF10191D),
+                color: AppPalette.color(context, const Color(0xFF10191D)),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                border: Border.all(
+                  color: AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.06),
+                ),
               ),
               child: IconButton(
                 tooltip: 'Anexar contexto',
@@ -5403,7 +6312,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 icon: Icon(
                   Icons.add_rounded,
                   color: _isLoadingAI
-                      ? Colors.grey.withValues(alpha: 0.5)
+                      ? AppPalette.color(
+                          context,
+                          Colors.grey,
+                        ).withValues(alpha: 0.5)
                       : primaryCyan,
                   size: 23,
                 ),
@@ -5413,10 +6325,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10191D),
+                  color: AppPalette.color(context, const Color(0xFF10191D)),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: AppPalette.color(
+                      context,
+                      Colors.white,
+                    ).withValues(alpha: 0.06),
                   ),
                 ),
                 child: TextField(
@@ -5427,15 +6342,19 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   maxLines: 5,
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppPalette.color(context, Colors.white),
                     fontSize: 14,
                     height: 1.35,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Escreva sua dúvida ou complete o modelo...',
+                    filled: false,
+                    hintText: 'Escreva sua dúvida...',
                     hintStyle: TextStyle(
-                      color: Colors.grey.withValues(alpha: 0.65),
+                      color: AppPalette.color(
+                        context,
+                        Colors.grey,
+                      ).withValues(alpha: 0.65),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -5457,7 +6376,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 height: 42,
                 decoration: BoxDecoration(
                   color: _isLoadingAI
-                      ? Colors.grey.withValues(alpha: 0.35)
+                      ? AppPalette.color(
+                          context,
+                          Colors.grey,
+                        ).withValues(alpha: 0.35)
                       : primaryCyan,
                   borderRadius: BorderRadius.circular(13),
                   boxShadow: _isLoadingAI
@@ -5469,9 +6391,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           ),
                         ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.send_rounded,
-                  color: Colors.black,
+                  color: AppPalette.color(context, Colors.black),
                   size: 22,
                 ),
               ),
@@ -5486,7 +6408,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     final unreadCount = _unreadNotificationCount;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -5503,7 +6425,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 child: IconButton(
                   icon: Icon(
                     Icons.search,
-                    color: _isShowingSearch ? primaryCyan : Colors.grey,
+                    color: _isShowingSearch
+                        ? primaryCyan
+                        : AppPalette.color(context, Colors.grey),
                   ),
                   onPressed: () {
                     _changeScreen();
@@ -5529,7 +6453,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         Icons.notifications_none,
                         color: _isShowingNotifications
                             ? primaryCyan
-                            : Colors.grey,
+                            : AppPalette.color(context, Colors.grey),
                       ),
                       onPressed: () {
                         _changeScreen();
@@ -5551,10 +6475,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.redAccent,
+                            color: AppPalette.color(context, Colors.redAccent),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: const Color(0xFF0B1215),
+                              color: AppPalette.color(
+                                context,
+                                const Color(0xFF0B1215),
+                              ),
                               width: 1.5,
                             ),
                           ),
@@ -5583,7 +6510,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppPalette.color(context, Colors.white),
                 ),
               ),
               Text(
@@ -5595,10 +6522,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          GestureDetector(
-            onTap: _showAISettingsModal,
-            child: Icon(Icons.settings, color: primaryCyan, size: 24),
-          ),
+          AppearanceButton(onSettings: _showAISettingsModal),
         ],
       ),
     );
@@ -5633,7 +6557,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 border: Border.all(
                   color: isSelected
                       ? primaryCyan
-                      : Colors.white.withValues(alpha: 0.08),
+                      : AppPalette.color(
+                          context,
+                          Colors.white,
+                        ).withValues(alpha: 0.08),
                 ),
               ),
               child: Row(
@@ -5642,7 +6569,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   if (index == 0) ...[
                     Icon(
                       Icons.dynamic_feed_outlined,
-                      color: isSelected ? primaryCyan : Colors.grey,
+                      color: isSelected
+                          ? primaryCyan
+                          : AppPalette.color(context, Colors.grey),
                       size: 15,
                     ),
                     const SizedBox(width: 6),
@@ -5650,7 +6579,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   Text(
                     tags[index],
                     style: TextStyle(
-                      color: isSelected ? primaryCyan : Colors.grey,
+                      color: isSelected
+                          ? primaryCyan
+                          : AppPalette.color(context, Colors.grey),
                       fontSize: 12,
                       fontWeight: isSelected
                           ? FontWeight.w700
@@ -5674,9 +6605,14 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         Container(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF0B1215),
+            color: AppPalette.color(context, const Color(0xFF0B1215)),
             border: Border(
-              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+              bottom: BorderSide(
+                color: AppPalette.color(
+                  context,
+                  Colors.white,
+                ).withValues(alpha: 0.06),
+              ),
             ),
           ),
           child: Row(
@@ -5709,6 +6645,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 onPressed: () => _askAIAboutPost(post),
                 icon: Icon(Icons.psychology_alt_rounded, color: primaryCyan),
               ),
+              _postOwnerMenu(post),
             ],
           ),
         ),
@@ -5719,10 +6656,13 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10191D),
+                  color: AppPalette.color(context, const Color(0xFF10191D)),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: AppPalette.color(
+                      context,
+                      Colors.white,
+                    ).withValues(alpha: 0.06),
                   ),
                 ),
                 child: Column(
@@ -5730,15 +6670,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: primaryCyan.withValues(alpha: 0.18),
-                          child: Icon(
-                            Icons.person,
-                            size: 16,
-                            color: primaryCyan,
-                          ),
-                        ),
+                        _buildAuthorAvatar(post.authorId ?? ''),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -5754,7 +6686,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                               Text(
                                 '${post.userHandle} • ${post.timeAgo}',
                                 style: TextStyle(
-                                  color: Colors.grey.shade500,
+                                  color: AppPalette.color(
+                                    context,
+                                    Colors.grey.shade500,
+                                  ),
                                   fontSize: 11,
                                 ),
                               ),
@@ -5762,7 +6697,12 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           ),
                         ),
                         if (post.isQuestion)
-                          _miniTag('Dúvida', color: Colors.orange),
+                          _miniTag(
+                            post.isResolved ? 'Resolvida' : 'Em aberto',
+                            color: post.isResolved
+                                ? AppPalette.color(context, Colors.greenAccent)
+                                : AppPalette.color(context, Colors.orange),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -5778,7 +6718,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     Text(
                       post.description,
                       style: TextStyle(
-                        color: Colors.grey.shade300,
+                        color: AppPalette.color(context, Colors.grey.shade300),
                         fontSize: 14,
                         height: 1.45,
                       ),
@@ -5789,7 +6729,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0B1215),
+                          color: AppPalette.color(
+                            context,
+                            const Color(0xFF0B1215),
+                          ),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: primaryCyan.withValues(alpha: 0.12),
@@ -5800,7 +6743,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                           child: SelectableText(
                             post.code,
                             style: GoogleFonts.firaCode(
-                              color: Colors.greenAccent.shade100,
+                              color: AppPalette.color(
+                                context,
+                                Colors.greenAccent.shade100,
+                              ),
                               fontSize: 12,
                               height: 1.45,
                             ),
@@ -5814,27 +6760,27 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       runSpacing: 6,
                       children: [
                         if (post.communityName != null)
-                          _miniTag(post.communityName!, color: Colors.amber),
+                          _miniTag(
+                            post.communityName!,
+                            color: AppPalette.color(context, Colors.amber),
+                          ),
                         ...post.tags.map((tag) => _miniTag(tag)),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    Row(
+                    Wrap(
+                      spacing: 14,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        _buildDetailStat(
-                          post.isLiked ? Icons.favorite : Icons.favorite_border,
-                          '${post.likes + (post.isLiked ? 1 : 0)}',
-                          post.isLiked ? Colors.redAccent : primaryCyan,
-                          () => _togglePostLike(post),
-                        ),
-                        const SizedBox(width: 14),
+                        _buildLiveLikeButton(post),
                         _buildDetailStat(
                           Icons.chat_bubble_outline_rounded,
+                          'Comentários',
                           '${_visibleCommentCount(post)}',
-                          Colors.grey,
+                          AppPalette.color(context, Colors.grey),
                           null,
                         ),
-                        const Spacer(),
                         TextButton.icon(
                           onPressed: () => _askAIAboutPost(post),
                           icon: const Icon(Icons.psychology, size: 17),
@@ -5862,7 +6808,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   const SizedBox(width: 8),
                   Text(
                     '${comments.length}',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.grey.shade500),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -5881,18 +6830,38 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
   Widget _buildDetailStat(
     IconData icon,
+    String label,
     String value,
     Color color,
     VoidCallback? onTap,
   ) {
     return GestureDetector(
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: color),
-          const SizedBox(width: 5),
-          Text(value, style: const TextStyle(fontSize: 13)),
-        ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 7),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade300),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -5902,54 +6871,78 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF10191D),
+        color: AppPalette.color(context, const Color(0xFF10191D)),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: AppPalette.color(
+            context,
+            Colors.white,
+          ).withValues(alpha: 0.06),
+        ),
       ),
       child: Text(
         'Ainda não há comentários salvos nessa discussão.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+        style: TextStyle(
+          color: AppPalette.color(context, Colors.grey.shade400),
+          fontSize: 12,
+        ),
       ),
     );
   }
 
   Widget _buildCommentCard(PostComment comment) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(13),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF10191D),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        color: AppPalette.color(context, const Color(0xFF10191D)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppPalette.color(
+            context,
+            Colors.white,
+          ).withValues(alpha: 0.06),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: primaryCyan.withValues(alpha: 0.16),
-            child: Icon(Icons.person, size: 14, color: primaryCyan),
-          ),
-          const SizedBox(width: 10),
+          _buildAuthorAvatar(comment.authorId),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  comment.authorName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        comment.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      _formatCommentTime(comment.createdAt),
+                      style: TextStyle(
+                        color: AppPalette.color(context, Colors.grey.shade600),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 7),
                 Text(
                   comment.body,
                   style: TextStyle(
-                    color: Colors.grey.shade300,
-                    fontSize: 13,
-                    height: 1.35,
+                    color: AppPalette.color(context, Colors.grey.shade300),
+                    fontSize: 13.5,
+                    height: 1.42,
                   ),
                 ),
               ],
@@ -5960,59 +6953,156 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     );
   }
 
+  String _formatCommentTime(DateTime createdAt) {
+    final difference = DateTime.now().difference(createdAt);
+    if (difference.inMinutes < 1) return 'agora';
+    if (difference.inMinutes < 60) return '${difference.inMinutes} min';
+    if (difference.inHours < 24) return '${difference.inHours} h';
+    return '${difference.inDays} d';
+  }
+
   Widget _buildCommentComposer(Post post) {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         decoration: BoxDecoration(
-          color: const Color(0xFF0B1215),
+          color: AppPalette.color(context, const Color(0xFF0B1215)),
           border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+            top: BorderSide(
+              color: AppPalette.color(
+                context,
+                Colors.white,
+              ).withValues(alpha: 0.06),
+            ),
           ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: TextField(
-                controller: _commentController,
-                minLines: 1,
-                maxLines: 3,
-                enabled: !_activeUser.isGuest,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: _activeUser.isGuest
-                      ? 'Entre para comentar'
-                      : 'Escreva uma resposta...',
-                  hintStyle: TextStyle(color: Colors.grey.shade500),
-                  filled: true,
-                  fillColor: const Color(0xFF10191D),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 13,
-                    vertical: 11,
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 8),
+              child: Text(
+                _activeUser.isGuest
+                    ? 'Entre para participar da conversa'
+                    : 'Responder como ${_activeUser.name}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.grey.shade400),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 42,
-              height: 42,
-              child: IconButton.filled(
-                tooltip: 'Enviar comentário',
-                style: IconButton.styleFrom(
-                  backgroundColor: primaryCyan,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    minLines: 1,
+                    maxLines: 4,
+                    enabled: !_activeUser.isGuest,
+                    style: TextStyle(
+                      color: AppPalette.color(context, Colors.white),
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: _activeUser.isGuest
+                          ? 'Faça login para comentar'
+                          : 'Escreva uma resposta para ajudar...',
+                      hintStyle: TextStyle(
+                        color: AppPalette.color(context, Colors.grey.shade500),
+                      ),
+                      filled: true,
+                      fillColor: AppPalette.color(
+                        context,
+                        const Color(0xFF10191D),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
                   ),
                 ),
-                onPressed: () => _publishComment(post),
-                icon: const Icon(Icons.send_rounded, size: 19),
+                const SizedBox(width: 9),
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: IconButton.filled(
+                    tooltip: 'Enviar comentário',
+                    style: IconButton.styleFrom(
+                      backgroundColor: primaryCyan,
+                      foregroundColor: AppPalette.color(context, Colors.black),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                    onPressed: _publishingComment
+                        ? null
+                        : () => _publishComment(post),
+                    icon: const Icon(Icons.send_rounded, size: 21),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostActionButton({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 38),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: filled
+              ? color.withValues(alpha: 0.14)
+              : AppPalette.color(
+                  context,
+                  Colors.white,
+                ).withValues(alpha: 0.035),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: filled
+                ? color.withValues(alpha: 0.32)
+                : AppPalette.color(
+                    context,
+                    Colors.white,
+                  ).withValues(alpha: 0.06),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 7),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade300),
+                fontSize: 12,
               ),
             ),
           ],
@@ -6031,23 +7121,24 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         });
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.fromLTRB(13, 12, 13, 11),
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFF10191D),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          color: AppPalette.color(context, const Color(0xFF10191D)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: AppPalette.color(
+              context,
+              Colors.white,
+            ).withValues(alpha: 0.06),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundColor: primaryCyan.withValues(alpha: 0.18),
-                  child: Icon(Icons.person, size: 10, color: primaryCyan),
-                ),
+                _buildAuthorAvatar(post.authorId ?? ''),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Row(
@@ -6065,37 +7156,51 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       ),
                       if (post.isQuestion) ...[
                         const SizedBox(width: 7),
-                        _miniTag('Dúvida', color: Colors.orange),
+                        _miniTag(
+                          post.isResolved ? 'Resolvida' : 'Em aberto',
+                          color: post.isResolved
+                              ? AppPalette.color(context, Colors.greenAccent)
+                              : AppPalette.color(context, Colors.orange),
+                        ),
                       ],
                       const SizedBox(width: 7),
                       Text(
                         post.timeAgo,
                         style: TextStyle(
                           fontSize: 10,
-                          color: Colors.grey.shade600,
+                          color: AppPalette.color(
+                            context,
+                            Colors.grey.shade600,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => _togglePostFavorite(post),
-                  child: Icon(
+                IconButton(
+                  tooltip: post.isFavorited
+                      ? 'Remover dos salvos'
+                      : 'Salvar publicação',
+                  onPressed: _pendingPostFavorites.contains(post.id)
+                      ? null
+                      : () => _togglePostFavorite(post),
+                  icon: Icon(
                     post.isFavorited ? Icons.bookmark : Icons.bookmark_border,
                     size: 18,
                     color: post.isFavorited
                         ? primaryCyan
-                        : Colors.grey.shade600,
+                        : AppPalette.color(context, Colors.grey.shade600),
                   ),
                 ),
+                _postOwnerMenu(post),
               ],
             ),
             const SizedBox(height: 10),
             Text(
               post.title,
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 15,
+                color: AppPalette.color(context, Colors.white),
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
                 height: 1.25,
               ),
@@ -6105,7 +7210,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               post.description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+              style: TextStyle(
+                color: AppPalette.color(context, Colors.grey.shade400),
+                fontSize: 12,
+              ),
             ),
             if (post.code.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -6113,7 +7221,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B1215),
+                  color: AppPalette.color(context, const Color(0xFF0B1215)),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: SingleChildScrollView(
@@ -6123,7 +7231,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                     maxLines: 4,
                     overflow: TextOverflow.fade,
                     style: GoogleFonts.firaCode(
-                      color: Colors.greenAccent.shade100,
+                      color: AppPalette.color(
+                        context,
+                        Colors.greenAccent.shade100,
+                      ),
                       fontSize: 10.5,
                       height: 1.35,
                     ),
@@ -6132,62 +7243,39 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               ),
             ],
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                GestureDetector(
-                  onTap: () => _togglePostLike(post),
-                  child: Row(
-                    children: [
-                      Icon(
-                        post.isLiked ? Icons.favorite : Icons.favorite_border,
-                        size: 16,
-                        color: post.isLiked ? Colors.red : primaryCyan,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${post.likes + (post.isLiked ? 1 : 0)}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
+                _buildLiveLikeButton(post),
+                _buildPostActionButton(
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Comentar',
+                  value: '${_visibleCommentCount(post)}',
+                  color: AppPalette.color(context, Colors.grey.shade300),
+                  onTap: () {
+                    setState(() {
+                      _selectedPost = post;
+                      _isShowingSearch = false;
+                      _isShowingNotifications = false;
+                    });
+                  },
                 ),
-                const SizedBox(width: 14),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 16,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${_visibleCommentCount(post)}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: post.isQuestion
-                      ? 'Pedir ajuda da IA'
-                      : 'Explicar com IA',
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: () => _askAIAboutPost(post),
-                  icon: Icon(Icons.psychology, color: primaryCyan, size: 18),
+                _buildPostActionButton(
+                  icon: Icons.psychology_alt_rounded,
+                  label: 'Ajuda',
+                  value: 'IA',
+                  color: primaryCyan,
+                  onTap: () => _askAIAboutPost(post),
                 ),
                 if (post.code.trim().isNotEmpty)
-                  IconButton(
-                    tooltip: 'Copiar código',
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
+                  _buildPostActionButton(
+                    icon: Icons.copy_rounded,
+                    label: 'Código',
+                    value: 'Copiar',
+                    color: AppPalette.color(context, Colors.grey.shade400),
+                    onTap: () {
                       Clipboard.setData(ClipboardData(text: post.code));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -6196,11 +7284,6 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         ),
                       );
                     },
-                    icon: Icon(
-                      Icons.copy_rounded,
-                      color: Colors.grey.shade500,
-                      size: 17,
-                    ),
                   ),
               ],
             ),
@@ -6211,7 +7294,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 runSpacing: 6,
                 children: [
                   if (post.communityName != null)
-                    _miniTag(post.communityName!, color: Colors.amber),
+                    _miniTag(
+                      post.communityName!,
+                      color: AppPalette.color(context, Colors.amber),
+                    ),
                   ...post.tags.take(3).map((tag) => _miniTag(tag)),
                 ],
               ),
@@ -6254,15 +7340,19 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.psychology, color: Colors.black, size: 18),
+              Icon(
+                Icons.psychology,
+                color: AppPalette.color(context, Colors.black),
+                size: 18,
+              ),
               SizedBox(width: 6),
               Text(
                 'IA',
                 style: TextStyle(
-                  color: Colors.black,
+                  color: AppPalette.color(context, Colors.black),
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -6302,7 +7392,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F171A),
+                color: AppPalette.color(context, const Color(0xFF0F171A)),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: primaryCyan.withValues(alpha: 0.18)),
               ),
@@ -6325,7 +7415,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                         Text(
                           'Modelo fixo do projeto para evitar configuração duplicada.',
                           style: TextStyle(
-                            color: Colors.grey.shade400,
+                            color: AppPalette.color(
+                              context,
+                              Colors.grey.shade400,
+                            ),
                             fontSize: 12,
                           ),
                         ),
@@ -6341,9 +7434,15 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                 Expanded(
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.grey.shade200,
+                      foregroundColor: AppPalette.color(
+                        context,
+                        Colors.grey.shade200,
+                      ),
                       side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.12),
+                        color: AppPalette.color(
+                          context,
+                          Colors.white,
+                        ).withValues(alpha: 0.12),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
@@ -6363,7 +7462,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryCyan,
-                      foregroundColor: Colors.black,
+                      foregroundColor: AppPalette.color(context, Colors.black),
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(13),
@@ -6396,10 +7495,10 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           children: [
             Icon(Icons.psychology, color: primaryCyan),
             const SizedBox(width: 8),
-            const Text(
+            Text(
               'Perguntar à IA',
               style: TextStyle(
-                color: Colors.white,
+                color: AppPalette.color(context, Colors.white),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -6411,23 +7510,31 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Faça uma pergunta sobre código ou desenvolvimento:',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.grey),
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: questionController,
                 maxLines: 5,
                 minLines: 3,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: AppPalette.color(context, Colors.white),
+                ),
                 decoration: InputDecoration(
                   hintText: 'Ex: Como otimizar um useEffect em React?',
                   hintStyle: TextStyle(
-                    color: Colors.grey.withValues(alpha: 0.5),
+                    color: AppPalette.color(
+                      context,
+                      Colors.grey,
+                    ).withValues(alpha: 0.5),
                   ),
                   filled: true,
-                  fillColor: const Color(0xFF0F171A),
+                  fillColor: AppPalette.color(context, const Color(0xFF0F171A)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -6451,13 +7558,18 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancelar',
-              style: TextStyle(color: Colors.grey.withValues(alpha: 0.7)),
+              style: TextStyle(
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.7),
+              ),
             ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryCyan,
-              foregroundColor: Colors.black,
+              foregroundColor: AppPalette.color(context, Colors.black),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -6479,11 +7591,25 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
 
   void _sendAIMessageFromInput() {
     final question = _aiMessageController.text.trim();
-    if ((question.isEmpty && _aiContextAttachments.isEmpty) || _isLoadingAI) {
+    if ((question.isEmpty && _aiContextAttachments.isEmpty) ||
+        _isLoadingAI ||
+        _historyBusy) {
+      return;
+    }
+    if (!_historyReady || _historyUnsaved) {
+      _showAISnackBar(
+        'Carregue ou sincronize o histórico antes de enviar. Seu rascunho foi mantido.',
+      );
       return;
     }
 
     final prompt = _composeAIQuestion(question);
+    if (prompt.length > 60000) {
+      _showAISnackBar(
+        'O texto está muito longo. Reduza a pergunta ou o conteúdo anexado antes de enviar.',
+      );
+      return;
+    }
     final displayText = _composeAIMessagePreview(question);
     final displayAttachments = List<AIContextAttachment>.from(
       _aiContextAttachments,
@@ -6596,11 +7722,27 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     List<AIContextAttachment> displayAttachments = const [],
     List<Map<String, dynamic>> attachmentParts = const [],
   }) async {
+    if (!mounted || _isLoadingAI || _historyBusy) return;
+    if (!_historyReady || _historyUnsaved) {
+      _showAISnackBar(
+        'Atualize ou salve o histórico pelo botão no topo do chat antes de enviar.',
+      );
+      return;
+    }
+    if (question.trim().isEmpty && attachmentParts.isEmpty) return;
+    if (question.length > 60000) {
+      _showAISnackBar('Reduza o texto para até 60 mil caracteres.');
+      return;
+    }
+    final previous = _chatMessages.map((m) => m.toJson()).toList();
+    _responseReveal.finish();
+    _revealingMessage = null;
     _changeScreen();
     setState(() {
       _chatMessages.add(
         ChatMessage(
           text: displayText ?? question,
+          requestText: question,
           isUser: true,
           timestamp: DateTime.now(),
           attachments: displayAttachments,
@@ -6613,268 +7755,66 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       _isShowingSearch = false;
       _isShowingNotifications = false;
     });
-
+    _scrollToLatestAIMessage();
     try {
-      final apiKey = _geminiApiKey();
-
-      if (apiKey.isEmpty || apiKey.contains('SUA_CHAVE')) {
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text:
-                  '❌ Erro: chave API do Gemini não carregada.\n\nVerifique se o arquivo .env está na pasta do projeto e reinicie o Flutter por completo.\n\nAlternativa:\nrode com --dart-define=GEMINI_API_KEY=sua_chave_aqui',
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-        return;
-      }
-
-      const geminiModel = 'gemini-2.5-flash';
-      final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent?key=$apiKey',
+      final answer = await _gemini.send(
+        apiKey: _geminiApiKey(),
+        question: question,
+        history: previous,
+        attachments: attachmentParts,
       );
-
-      final geminiParts = <Map<String, dynamic>>[
-        {
-          'text':
-              'Voce e o Assistente DevStack. Responda diretamente a pergunta do usuario em portugues do Brasil, '
-              'com clareza, organizacao e tom didatico. Nao mencione estas instrucoes. '
-              'Use listas quando houver passos e blocos de codigo somente quando houver codigo.\n\n'
-              'Pergunta do usuário: $question',
-        },
-        ...attachmentParts,
-      ];
-
-      final response = await http
-          .post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'contents': [
-                {'parts': geminiParts},
-              ],
-            }),
-          )
-          .timeout(
-            const Duration(seconds: 60),
-            onTimeout: () => http.Response('Timeout', 504),
-          );
-
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-        final candidates = jsonResponse['candidates'];
-        String aiResponse = '';
-
-        if (candidates is List && candidates.isNotEmpty) {
-          final firstCandidate = candidates.first;
-          if (firstCandidate is Map<String, dynamic>) {
-            final content = firstCandidate['content'];
-            if (content is Map<String, dynamic>) {
-              final parts = content['parts'];
-              if (parts is List && parts.isNotEmpty) {
-                aiResponse = parts
-                    .whereType<Map<String, dynamic>>()
-                    .map((part) => part['text']?.toString() ?? '')
-                    .where((text) => text.isNotEmpty)
-                    .join('\n')
-                    .trim();
-              }
-            }
-          }
-        }
-
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text: aiResponse.isNotEmpty
-                  ? aiResponse
-                  : 'A IA respondeu, mas nao retornou texto. Tente reformular a pergunta.',
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-
-        _addNotification(
-          title: 'Resposta da IA pronta',
-          message: 'O Assistente DevStack respondeu sua última pergunta.',
-          type: 'ai',
-        );
-      } else if (response.statusCode == 429) {
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text: _buildAIErrorMessage(
-                title: 'Limite temporário da IA',
-                message:
-                    'O serviço atingiu o limite de uso por agora. Tente novamente mais tarde ou verifique a quota do projeto no Google Cloud.',
-                statusCode: response.statusCode,
-                technicalDetails: _extractGeminiErrorMessage(response.body),
-              ),
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-      } else if (response.statusCode == 401) {
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text: _buildAIErrorMessage(
-                title: 'Chave da IA inválida',
-                message:
-                    'Não consegui autenticar a chave do Gemini. Confira o arquivo .env ou gere uma nova chave no Google AI Studio.',
-                statusCode: response.statusCode,
-                technicalDetails: _extractGeminiErrorMessage(response.body),
-              ),
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-      } else if (response.statusCode == 504) {
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text: _buildAIErrorMessage(
-                title: 'A resposta demorou demais',
-                message:
-                    'A IA não respondeu dentro do tempo esperado. Tente enviar novamente em alguns segundos.',
-                statusCode: response.statusCode,
-              ),
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-      } else {
-        final errorPreview = _extractGeminiErrorMessage(response.body);
-        setState(() {
-          _chatMessages.add(
-            ChatMessage(
-              text: _buildAIErrorMessage(
-                title: _friendlyAIErrorTitle(response.statusCode),
-                message: _friendlyAIErrorMessage(response.statusCode),
-                statusCode: response.statusCode,
-                technicalDetails: errorPreview,
-              ),
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _isLoadingAI = false;
-          _aiRequestHasAttachments = false;
-        });
-      }
-    } catch (e) {
+      if (!mounted) return;
+      final response = ChatMessage(
+        text: answer,
+        isUser: false,
+        timestamp: DateTime.now(),
+      );
       setState(() {
-        _chatMessages.add(
+        _chatMessages.add(response);
+        _revealingMessage = response;
+      });
+      _responseReveal.start(
+        answer,
+        animate: !MediaQuery.disableAnimationsOf(context),
+      );
+    } on AIRequestException catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _chatMessages.add(
           ChatMessage(
-            text: _buildAIErrorMessage(
-              title: 'Falha de conexão',
-              message:
-                  'Não consegui conversar com a IA agora. Verifique sua internet e tente novamente em alguns segundos.',
-              technicalDetails: e.toString(),
-            ),
+            text: error.message,
             isUser: false,
+            isError: true,
             timestamp: DateTime.now(),
           ),
-        );
-        _isLoadingAI = false;
-        _aiRequestHasAttachments = false;
-      });
+        ),
+      );
     } finally {
-      await _saveAIChatHistory();
+      if (mounted) {
+        _chatScrollController.followGrowingResponse();
+        await _saveAIChatHistory();
+        if (mounted) {
+          setState(() {
+            _isLoadingAI = false;
+            _aiRequestHasAttachments = false;
+          });
+          _chatScrollController.followGrowingResponse();
+        }
+      }
     }
+  }
+
+  void _scrollToLatestAIMessage() {
+    if (mounted) _chatScrollController.followLatest();
   }
 
   String _geminiApiKey() {
-    final dotenvKey = (dotenv.env['GEMINI_API_KEY'] ?? '').trim();
+    final dotenvKey = dotenv.isInitialized
+        ? (dotenv.env['GEMINI_API_KEY'] ?? '').trim()
+        : '';
     if (dotenvKey.isNotEmpty) return dotenvKey;
 
     return const String.fromEnvironment('GEMINI_API_KEY').trim();
-  }
-
-  String _friendlyAIErrorTitle(int statusCode) {
-    if (statusCode == 503) return 'A IA está ocupada agora';
-    if (statusCode >= 500) return 'Instabilidade temporária da IA';
-    if (statusCode == 400) return 'Não consegui processar essa solicitação';
-    if (statusCode == 403) return 'Acesso bloqueado pela API';
-    return 'Não consegui responder agora';
-  }
-
-  String _friendlyAIErrorMessage(int statusCode) {
-    if (statusCode == 503) {
-      return 'O Gemini está com alta demanda no momento. Tente novamente em alguns segundos.';
-    }
-    if (statusCode >= 500) {
-      return 'O serviço da IA parece estar instável. Aguarde um pouco e tente novamente.';
-    }
-    if (statusCode == 400) {
-      return 'A pergunta ou algum anexo pode estar grande ou em formato incompatível. Tente reduzir o conteúdo e enviar novamente.';
-    }
-    if (statusCode == 403) {
-      return 'A chave atual não tem permissão para acessar esse recurso. Verifique a configuração do projeto no Google Cloud.';
-    }
-    return 'Tente novamente. Se continuar acontecendo, revise a chave da API e a conexão com a internet.';
-  }
-
-  String _buildAIErrorMessage({
-    required String title,
-    required String message,
-    int? statusCode,
-    String? technicalDetails,
-  }) {
-    final buffer = StringBuffer()
-      ..writeln('## $title')
-      ..writeln()
-      ..writeln(message);
-
-    if (statusCode != null) {
-      buffer
-        ..writeln()
-        ..writeln('Status: $statusCode');
-    }
-
-    final details = technicalDetails?.trim();
-    if (details != null && details.isNotEmpty && details != 'Timeout') {
-      buffer
-        ..writeln()
-        ..writeln('Detalhe técnico: $details');
-    }
-
-    return buffer.toString().trim();
-  }
-
-  String _extractGeminiErrorMessage(String responseBody) {
-    String message = responseBody;
-
-    try {
-      final errorJson = jsonDecode(responseBody) as Map<String, dynamic>;
-      final error = errorJson['error'];
-      if (error is Map<String, dynamic> && error['message'] != null) {
-        message = error['message'].toString();
-      }
-    } catch (_) {
-      // Mantem o corpo original quando a resposta nao for JSON.
-    }
-
-    if (message.length > 500) {
-      return message.substring(0, 500);
-    }
-    return message;
   }
 
   Future<void> _consultarCEP() async {
@@ -6917,7 +7857,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: const Text('✅ CEP consultado com sucesso!'),
-                backgroundColor: Colors.green,
+                backgroundColor: AppPalette.color(context, Colors.green),
                 behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 2),
               ),
@@ -6956,7 +7896,9 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(
+              color: AppPalette.color(context, Colors.white10),
+            ),
           ),
           child: Column(
             children: [
@@ -6977,13 +7919,33 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
     IconData icon, {
     bool enabled = false,
   }) {
+    if (!enabled) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon, color: AppPalette.color(context, Colors.white54)),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.white60),
+            fontSize: 12,
+          ),
+        ),
+        subtitle: Text(
+          controller.text.isEmpty ? 'Não informado' : controller.text,
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.white),
+            fontSize: 16,
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppPalette.color(context, Colors.white),
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
@@ -6991,23 +7953,31 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF0F171A),
+            color: AppPalette.color(context, const Color(0xFF1D3035)),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: enabled ? 0.08 : 0.04),
-            ),
+            border: Border.all(color: primaryCyan.withValues(alpha: 0.45)),
           ),
           child: TextField(
+            key: ValueKey('profile-edit-$label'),
+            autofocus: controller == _profileNameController,
             controller: controller,
-            enabled: enabled,
-            style: const TextStyle(color: Colors.white),
+            enabled: !_savingProfile,
+            style: TextStyle(color: AppPalette.color(context, Colors.white)),
             decoration: InputDecoration(
-              hintStyle: TextStyle(color: Colors.grey.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                color: AppPalette.color(
+                  context,
+                  Colors.grey,
+                ).withValues(alpha: 0.5),
+              ),
               prefixIcon: Icon(
                 icon,
                 color: enabled
                     ? primaryCyan
-                    : Colors.grey.withValues(alpha: 0.6),
+                    : AppPalette.color(
+                        context,
+                        Colors.grey,
+                      ).withValues(alpha: 0.6),
               ),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -7037,13 +8007,22 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
       child: SizedBox(
         height: 72,
         child: Container(
-          color: const Color(0xFF0B1215),
+          color: AppPalette.color(context, const Color(0xFF0B1215)),
           child: Row(
             children: List.generate(
               navItems.length,
               (index) => Expanded(
                 child: GestureDetector(
                   onTap: () {
+                    if (_selectedIndex == index &&
+                        !_isShowingSearch &&
+                        !_isShowingNotifications) {
+                      return;
+                    }
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    if (_profileEditing && index != 2) {
+                      _cancelProfileEditing();
+                    }
                     _changeScreen();
                     setState(() {
                       _selectedIndex = index;
@@ -7053,9 +8032,6 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                       if (index != 2) {
                         _selectedProfileSection = null;
                         _profileEditing = false;
-                      }
-                      if (index != 1) {
-                        _selectedCommunity = null;
                       }
                     });
                   },
@@ -7082,7 +8058,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                               navItems[index]['icon'] as IconData,
                               color: _selectedIndex == index
                                   ? primaryCyan
-                                  : Colors.grey,
+                                  : AppPalette.color(context, Colors.grey),
                               size: 23,
                             ),
                           ),
@@ -7093,7 +8069,7 @@ class _FeedScreenState extends State<FeedScreen> with TickerProviderStateMixin {
                             style: TextStyle(
                               color: _selectedIndex == index
                                   ? primaryCyan
-                                  : Colors.grey,
+                                  : AppPalette.color(context, Colors.grey),
                               fontSize: 9,
                               fontWeight: _selectedIndex == index
                                   ? FontWeight.bold

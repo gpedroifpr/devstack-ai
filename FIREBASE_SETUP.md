@@ -69,10 +69,13 @@ Se não quiser usar terminal:
 
 ## 7. Deploy web no Firebase Hosting
 
+Use o script do projeto para gerar o build com as variáveis do `.env`.
+Sem isso, o app publicado pode abrir sem Firebase/Gemini configurados.
+
 1. Gere o build web:
 
 ```powershell
-C:\src\flutter\bin\flutter.bat build web --release
+.\scripts\build_web_from_env.ps1
 ```
 
 2. Publique no Firebase Hosting:
@@ -83,11 +86,17 @@ firebase deploy --only hosting
 
 O arquivo `firebase.json` já aponta o Hosting para `build/web`.
 
+Também dá para fazer tudo em um comando:
+
+```powershell
+.\scripts\build_web_from_env.ps1 -Deploy
+```
+
 ## 8. Deploy web no Netlify
 
 O projeto também tem `netlify.toml`. No Netlify, use:
 
-- Build command: `flutter build web --release`
+- Build command: o comando configurado no `netlify.toml`, com as variáveis cadastradas no painel do Netlify.
 - Publish directory: `build/web`
 
 Se o Netlify não reconhecer Flutter automaticamente, o caminho mais simples é gerar o build no computador e subir a pasta `build/web` manualmente.

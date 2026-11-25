@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
+
 import 'dart:async';
 import 'dart:html' as html;
 import 'dart:typed_data';
@@ -20,7 +22,7 @@ class ClipboardImagePasteService {
   static Object? listen(PastedImageHandler onImage) {
     return html.document.onPaste.listen((event) {
       final files = event.clipboardData?.files;
-      if (files == null || files.length == 0) return;
+      if (files == null || files.isEmpty) return;
 
       final file = files[0];
       if (!file.type.startsWith('image/')) return;

@@ -1,5 +1,6 @@
 param(
-  [string]$Flutter = "C:\src\flutter\bin\flutter.bat"
+  [string]$Flutter = "C:\src\flutter\bin\flutter.bat",
+  [switch]$Deploy
 )
 
 $ErrorActionPreference = "Stop"
@@ -69,4 +70,17 @@ if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
 
-Write-Host "Build pronto. Agora publique com: firebase deploy"
+if (-not $Deploy) {
+  Write-Host "Build pronto. Para publicar, rode: firebase deploy --only hosting"
+  Write-Host "Ou rode este script com -Deploy para fazer build e deploy juntos."
+  return
+}
+
+Write-Host "Publicando no Firebase Hosting..."
+firebase deploy --only hosting
+
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+
+Write-Host "Deploy concluido."

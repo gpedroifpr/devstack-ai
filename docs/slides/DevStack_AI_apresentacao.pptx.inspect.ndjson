@@ -1,0 +1,190 @@
+{"kind":"deck","id":"pr/1blowy","name":"Deck"}
+{"kind":"layout","layoutId":"9b2a831d-b605-49db-963a-0ff770ff50ba","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"946e6661-cfd4-4f79-bd7e-3e1d6d614fe5","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/7pqpbx","slide":1,"title":"DevStack","textShapes":8}
+{"kind":"shape","id":"sh/adkv6lkb","slide":1,"bbox":[56,52,1168,616]}
+{"kind":"textbox","id":"sh/xgve1032","slide":1,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[92,105,390,70]}
+{"kind":"textbox","id":"sh/wfmd8v2h","slide":1,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[375,105,92,70]}
+{"kind":"textbox","id":"sh/natcv6l0","slide":1,"text":"Interface responsiva para uma comunidade de dúvidas, estudos e apoio com IA","textPreview":"Interface responsiva para uma comunidade de dúvidas, estudos e apoio com IA","textChars":75,"textLines":1,"bbox":[92,208,650,118]}
+{"kind":"textbox","id":"sh/m9kv2lkf","slide":1,"text":"Projeto Flutter Web com Firebase, feed de publicações, comunidades, perfil e chat com Gemini.","textPreview":"Projeto Flutter Web com Firebase, feed de publicações, comunidades, perfil e chat com Gemini.","textChars":93,"textLines":1,"bbox":[92,354,560,72]}
+{"kind":"shape","id":"sh/9cbexg36","slide":1,"bbox":[92,462,150,38]}
+{"kind":"textbox","id":"sh/ob2d4b2l","slide":1,"text":"Flutter Web","textPreview":"Flutter Web","textChars":11,"textLines":1,"bbox":[92,469,150,22]}
+{"kind":"shape","id":"sh/zm9cr6lo","slide":1,"bbox":[258,462,130,38]}
+{"kind":"textbox","id":"sh/el0vy1kj","slide":1,"text":"Firebase","textPreview":"Firebase","textChars":8,"textLines":1,"bbox":[258,469,130,22]}
+{"kind":"shape","id":"sh/s36xwva5","slide":1,"bbox":[404,462,150,38]}
+{"kind":"textbox","id":"sh/t4fep0ra","slide":1,"text":"Gemini API","textPreview":"Gemini API","textChars":10,"textLines":1,"bbox":[404,469,150,22]}
+{"kind":"textbox","id":"sh/72xwnqtk","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"image","id":"im/18fqp0zm","slide":1,"name":"","geometry":"roundRect","alt":"Tela inicial do DevStack AI","bbox":[738,118,420,360]}
+{"kind":"notes","id":"nt/7pqpbx","slide":1,"text":"Apresente o projeto como uma plataforma para estudantes de programação organizarem dúvidas e receberem apoio.\nDestaque que o visual do deck acompanha o tema escuro e ciano usado no aplicativo.\n\n[Sources]\nCódigo-fonte local do DevStack AI em lib/main.dart e lib/screens/auth_screen.dart.\nScreenshot fornecido pelo autor durante o desenvolvimento."}
+{"kind":"slide","id":"sl/k5zjkm","slide":2,"title":"DevStack","textShapes":14}
+{"kind":"textbox","id":"sh/e14ralo3","slide":2,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/14va5g7e","slide":2,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/g3m9cb6t","slide":2,"text":"O problema era juntar dúvida, comunidade e orientação","textPreview":"O problema era juntar dúvida, comunidade e orientação","textChars":53,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/ryt8z6pc","slide":2,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/6xkr61or","slide":2,"text":"A proposta nasceu da dificuldade de estudar programação com dúvidas espalhadas entre chats, vídeos e anotações.","textPreview":"A proposta nasceu da dificuldade de estudar programação com dúvidas espalhadas entre chats, vídeos e anotações.","textChars":111,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/t0vq1g7i","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/sz298b6x","slide":2,"bbox":[86,292,58,58]}
+{"kind":"textbox","id":"sh/jut8v6pg","slide":2,"text":"D","textPreview":"D","textChars":1,"textLines":1,"bbox":[86,301,58,34]}
+{"kind":"textbox","id":"sh/i9kr218v","slide":2,"text":"Dúvidas dispersas","textPreview":"Dúvidas dispersas","textChars":17,"textLines":1,"bbox":[168,291,420,34]}
+{"kind":"textbox","id":"sh/ofatoja1","slide":2,"text":"O estudante precisa sair do ambiente de estudo para procurar respostas em vários lugares.","textPreview":"O estudante precisa sair do ambiente de estudo para procurar respostas em vários lugares.","textChars":89,"textLines":1,"bbox":[168,325,780,42]}
+{"kind":"shape","id":"sh/pgjax4rm","slide":2,"bbox":[86,390,58,58]}
+{"kind":"textbox","id":"sh/2d8bm9sv","slide":2,"text":"P","textPreview":"P","textChars":1,"textLines":1,"bbox":[86,399,58,34]}
+{"kind":"textbox","id":"sh/nehsve9g","slide":2,"text":"Pouca organização","textPreview":"Pouca organização","textChars":17,"textLines":1,"bbox":[168,389,420,34]}
+{"kind":"textbox","id":"sh/0bq9kzap","slide":2,"text":"Erros, códigos e explicações se perdem quando não há histórico ou estrutura de posts.","textPreview":"Erros, códigos e explicações se perdem quando não há histórico ou estrutura de posts.","textChars":85,"textLines":1,"bbox":[168,423,780,42]}
+{"kind":"shape","id":"sh/1czat4ra","slide":2,"bbox":[86,488,58,58]}
+{"kind":"textbox","id":"sh/e98ripsz","slide":2,"text":"A","textPreview":"A","textChars":1,"textLines":1,"bbox":[86,497,58,34]}
+{"kind":"textbox","id":"sh/fahsru9k","slide":2,"text":"Apoio sob demanda","textPreview":"Apoio sob demanda","textChars":17,"textLines":1,"bbox":[168,487,420,34]}
+{"kind":"textbox","id":"sh/k7utw3a9","slide":2,"text":"A IA ajuda a transformar um problema em passos mais claros para avançar.","textPreview":"A IA ajuda a transformar um problema em passos mais claros para avançar.","textChars":72,"textLines":1,"bbox":[168,521,780,42]}
+{"kind":"notes","id":"nt/k5zjkm","slide":2,"text":"Explique que o app resolve um problema prático vivido por estudantes.\nFaça a ponte para a solução: um ambiente só para publicar dúvidas, conversar com IA e participar de comunidades.\n\n[Sources]\nEscopo e funcionalidades observadas no código do projeto."}
+{"kind":"slide","id":"sl/ijrp91","slide":3,"title":"DevStack","textShapes":13}
+{"kind":"textbox","id":"sh/nelsvm9k","slide":3,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/ofu9ora5","slide":3,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/9gnaxwrq","slide":3,"text":"A solução organiza o fluxo de estudo em quatro áreas","textPreview":"A solução organiza o fluxo de estudo em quatro áreas","textChars":52,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/epcrihs3","slide":3,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/zqlsrm9o","slide":3,"text":"Cada aba tem uma função clara para reduzir atrito e manter o usuário dentro do mesmo ambiente.","textPreview":"Cada aba tem uma função clara para reduzir atrito e manter o usuário dentro do mesmo ambiente.","textChars":94,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/0ru9kra9","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/1c3atcru","slide":3,"bbox":[84,294,472,104]}
+{"kind":"textbox","id":"sh/qlsrexsr","slide":3,"text":"Home / Feed","textPreview":"Home / Feed","textChars":11,"textLines":1,"bbox":[110,316,320,30]}
+{"kind":"textbox","id":"sh/rm1sn2tc","slide":3,"text":"Publicações, dúvidas, tags, curtidas e comentários.","textPreview":"Publicações, dúvidas, tags, curtidas e comentários.","textChars":51,"textLines":1,"bbox":[110,352,400,36]}
+{"kind":"shape","id":"sh/3ih0fq5k","slide":3,"bbox":[632,294,472,104]}
+{"kind":"textbox","id":"sh/2h8j6l4z","slide":3,"text":"Comunidades","textPreview":"Comunidades","textChars":11,"textLines":1,"bbox":[658,316,320,30]}
+{"kind":"textbox","id":"sh/pkzih0nq","slide":3,"text":"Grupos por tema, com criação de novas comunidades.","textPreview":"Grupos por tema, com criação de novas comunidades.","textChars":50,"textLines":1,"bbox":[658,352,400,36]}
+{"kind":"shape","id":"sh/ojq18vm5","slide":3,"bbox":[84,436,472,104]}
+{"kind":"textbox","id":"sh/b61kjq5w","slide":3,"text":"Perfil","textPreview":"Perfil","textChars":6,"textLines":1,"bbox":[110,458,320,30]}
+{"kind":"textbox","id":"sh/q5sjal4b","slide":3,"text":"Dados do usuário, edição de nome, usuário e foto.","textPreview":"Dados do usuário, edição de nome, usuário e foto.","textChars":49,"textLines":1,"bbox":[110,494,400,36]}
+{"kind":"shape","id":"sh/d8j2l0nm","slide":3,"bbox":[632,436,472,104]}
+{"kind":"textbox","id":"sh/c7a1cvmh","slide":3,"text":"IA","textPreview":"IA","textChars":2,"textLines":1,"bbox":[658,458,320,30]}
+{"kind":"textbox","id":"sh/7ax0765c","slide":3,"text":"Chat com histórico, anexos e respostas formatadas.","textPreview":"Chat com histórico, anexos e respostas formatadas.","textChars":50,"textLines":1,"bbox":[658,494,400,36]}
+{"kind":"notes","id":"nt/ijrp91","slide":3,"text":"Mostre que a navegação inferior simplifica o app em blocos fáceis de explicar.\nEvite listar tudo; foque no caminho do usuário: entra, publica, interage e consulta a IA.\n\n[Sources]\nComponentes e navegação definidos em lib/main.dart."}
+{"kind":"slide","id":"sl/8nzq9x","slide":4,"title":"DevStack","textShapes":13}
+{"kind":"textbox","id":"sh/gjit07ix","slide":4,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/fi9sr21c","slide":4,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/uh0byx0r","slide":4,"text":"A estrutura separa interface, autenticação e dados","textPreview":"A estrutura separa interface, autenticação e dados","textChars":50,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/tgrapcj6","slide":4,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/svitw7i1","slide":4,"text":"Mesmo com boa parte da interface em main.dart, os serviços críticos foram isolados em arquivos próprios.","textPreview":"Mesmo com boa parte da interface em main.dart, os serviços críticos foram isolados em arquivos próprios.","textChars":104,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/7u9sn21g","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"textbox","id":"sh/6t0bux0v","slide":4,"text":"lib/main.dart","textPreview":"lib/main.dart","textChars":13,"textLines":1,"bbox":[98,278,360,36]}
+{"kind":"textbox","id":"sh/5s7alsja","slide":4,"text":"Telas principais, modelos, feed, comunidades, perfil e chat.","textPreview":"Telas principais, modelos, feed, comunidades, perfil e chat.","textChars":60,"textLines":1,"bbox":[490,280,610,38]}
+{"kind":"shape","id":"sh/krytsnip","slide":4,"bbox":[98,332,1000,4]}
+{"kind":"textbox","id":"sh/e9g7y1gv","slide":4,"text":"lib/screens/auth_screen.dart","textPreview":"lib/screens/auth_screen.dart","textChars":28,"textLines":1,"bbox":[98,356,360,36]}
+{"kind":"textbox","id":"sh/fapo76xg","slide":4,"text":"Boas-vindas, login, cadastro e acesso como visitante.","textPreview":"Boas-vindas, login, cadastro e acesso como visitante.","textChars":53,"textLines":1,"bbox":[490,358,610,38]}
+{"kind":"shape","id":"sh/gbyp0by1","slide":4,"bbox":[98,410,1000,4]}
+{"kind":"textbox","id":"sh/1c769gf6","slide":4,"text":"lib/services/","textPreview":"lib/services/","textChars":13,"textLines":1,"bbox":[98,434,360,36]}
+{"kind":"textbox","id":"sh/65w7u1gj","slide":4,"text":"Firebase, banco local, camada de dados e anexos da IA.","textPreview":"Firebase, banco local, camada de dados e anexos da IA.","textChars":54,"textLines":1,"bbox":[490,436,610,38]}
+{"kind":"shape","id":"sh/r65o36x4","slide":4,"bbox":[98,488,1000,4]}
+{"kind":"textbox","id":"sh/s7epwbyp","slide":4,"text":"firebase.json / firestore.rules","textPreview":"firebase.json / firestore.rules","textChars":31,"textLines":1,"bbox":[98,512,360,36]}
+{"kind":"textbox","id":"sh/t8765wfa","slide":4,"text":"Deploy web e regras de segurança do Firestore.","textPreview":"Deploy web e regras de segurança do Firestore.","textChars":46,"textLines":1,"bbox":[490,514,610,38]}
+{"kind":"notes","id":"nt/8nzq9x","slide":4,"text":"Explique a função das pastas: lib concentra o app, services concentram integração e persistência, web configura a versão web.\nDiga que essa separação facilita manutenção e futuras integrações.\n\n[Sources]\nEstrutura de arquivos local do projeto.\npubspec.yaml, firebase.json e firestore.rules."}
+{"kind":"slide","id":"sl/b6cj11","slide":5,"title":"DevStack","textShapes":10}
+{"kind":"textbox","id":"sh/fel4bu1k","slide":5,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/gfe54zi5","slide":5,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/1gnmdkjq","slide":5,"text":"A responsividade foi construída com widgets do Flutter","textPreview":"A responsividade foi construída com widgets do Flutter","textChars":54,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/6pcny503","slide":5,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/rql47a1o","slide":5,"text":"O layout se adapta por composição: largura disponível, rolagem, quebra de linha e áreas seguras.","textPreview":"O layout se adapta por composição: largura disponível, rolagem, quebra de linha e áreas seguras.","textChars":96,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/sbu50fi9","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/tc3m9kju","slide":5,"bbox":[100,294,10,10]}
+{"kind":"textbox","id":"sh/ilsnu507","slide":5,"text":"LayoutBuilder muda a tela inicial entre composição larga e compacta.","textPreview":"LayoutBuilder muda a tela inicial entre composição larga e compacta.","textChars":68,"textLines":1,"bbox":[128,286,912,42]}
+{"kind":"shape","id":"sh/jm143a1c","slide":5,"bbox":[100,364,10,10]}
+{"kind":"textbox","id":"sh/n6tkfq9c","slide":5,"text":"MediaQuery limita largura de mensagens e evita blocos gigantes no desktop.","textPreview":"MediaQuery limita largura de mensagens e evita blocos gigantes no desktop.","textChars":74,"textLines":1,"bbox":[128,356,912,42]}
+{"kind":"shape","id":"sh/m5k3m58r","slide":5,"bbox":[100,434,10,10]}
+{"kind":"textbox","id":"sh/9sbmh0r2","slide":5,"text":"Wrap quebra tags e botões quando falta espaço.","textPreview":"Wrap quebra tags e botões quando falta espaço.","textChars":46,"textLines":1,"bbox":[128,426,912,42]}
+{"kind":"shape","id":"sh/8r2lovqx","slide":5,"bbox":[100,504,10,10]}
+{"kind":"textbox","id":"sh/vut4ja98","slide":5,"text":"SafeArea e SingleChildScrollView evitam cortes em telas menores.","textPreview":"SafeArea e SingleChildScrollView evitam cortes em telas menores.","textChars":64,"textLines":1,"bbox":[128,496,912,42]}
+{"kind":"shape","id":"sh/atk3q58n","slide":5,"bbox":[930,214,170,330]}
+{"kind":"shape","id":"sh/hwvmlkre","slide":5,"bbox":[958,254,114,32]}
+{"kind":"shape","id":"sh/wvmlsfqt","slide":5,"bbox":[958,308,114,72]}
+{"kind":"shape","id":"sh/by9k7694","slide":5,"bbox":[958,400,114,38]}
+{"kind":"textbox","id":"sh/qx03e18j","slide":5,"text":"mobile","textPreview":"mobile","textChars":6,"textLines":1,"bbox":[948,576,134,24]}
+{"kind":"notes","id":"nt/b6cj11","slide":5,"text":"Aqui você pode falar tecnicamente sem complicar: Flutter permite responsividade com widgets, não com CSS.\nCite exemplos reais do código: LayoutBuilder na tela inicial e Wrap nas tags/ações.\n\n[Sources]\nauth_screen.dart usa LayoutBuilder.\nmain.dart usa MediaQuery, Wrap, SafeArea e SingleChildScrollView em várias telas."}
+{"kind":"slide","id":"sl/iovd06","slide":6,"title":"DevStack","textShapes":9}
+{"kind":"textbox","id":"sh/2xcni1gf","slide":6,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/p03mdgf6","slide":6,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/ozu5kbyl","slide":6,"text":"A interface prioriza contraste, leitura e ação rápida","textPreview":"A interface prioriza contraste, leitura e ação rápida","textChars":53,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/fu1476xo","slide":6,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/ets3e1gj","slide":6,"text":"O visual escuro reduz ruído; o ciano marca ações principais e estados importantes.","textPreview":"O visual escuro reduz ruído; o ciano marca ações principais e estados importantes.","textChars":82,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/1w3m9gfu","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/zq54jqx8","slide":6,"bbox":[660,278,10,10]}
+{"kind":"textbox","id":"sh/ypwnqlgn","slide":6,"text":"Hierarquia forte em títulos e chamadas.","textPreview":"Hierarquia forte em títulos e chamadas.","textChars":39,"textLines":1,"bbox":[688,270,452,42]}
+{"kind":"shape","id":"sh/wnq9kfmp","slide":6,"bbox":[660,344,10,10]}
+{"kind":"textbox","id":"sh/hozqdkna","slide":6,"text":"Cards escuros para organizar blocos de conteúdo.","textPreview":"Cards escuros para organizar blocos de conteúdo.","textChars":48,"textLines":1,"bbox":[688,336,452,42]}
+{"kind":"shape","id":"sh/ul8ri54z","slide":6,"bbox":[660,410,10,10]}
+{"kind":"textbox","id":"sh/vmh8ba5k","slide":6,"text":"Botões de ação com área maior para toque e clique.","textPreview":"Botões de ação com área maior para toque e clique.","textChars":50,"textLines":1,"bbox":[688,402,452,42]}
+{"kind":"shape","id":"sh/8z69gfmt","slide":6,"bbox":[660,476,10,10]}
+{"kind":"textbox","id":"sh/90fq9kne","slide":6,"text":"Textos curtos para não poluir a tela.","textPreview":"Textos curtos para não poluir a tela.","textChars":37,"textLines":1,"bbox":[688,468,452,42]}
+{"kind":"image","id":"im/5wrm1cz2","slide":6,"name":"","geometry":"roundRect","alt":"Interface de boas-vindas","bbox":[80,250,510,312]}
+{"kind":"notes","id":"nt/iovd06","slide":6,"text":"Mostre que as decisões visuais foram pensadas para uso real, não apenas aparência.\nDestaque melhorias recentes: menos poluição, botões maiores e mensagens mais legíveis.\n\n[Sources]\nInterface implementada em lib/main.dart e lib/screens/auth_screen.dart.\nScreenshot fornecido pelo autor durante o desenvolvimento."}
+{"kind":"slide","id":"sl/wqdokg","slide":7,"title":"DevStack","textShapes":12}
+{"kind":"textbox","id":"sh/7mdwnelo","slide":7,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/8nmxwjm9","slide":7,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/98vepo3u","slide":7,"text":"Firebase tornou o protótipo persistente","textPreview":"Firebase tornou o protótipo persistente","textChars":39,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/u94fyt4f","slide":7,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/vadwryl0","slide":7,"text":"O projeto saiu do armazenamento local e passou a gravar dados em serviços reais de back-end.","textPreview":"O projeto saiu do armazenamento local e passou a gravar dados em serviços reais de back-end.","textChars":92,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/wbmx03ml","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/hcvet836","slide":7,"bbox":[90,300,300,168]}
+{"kind":"textbox","id":"sh/qd0vm94b","slide":7,"text":"Auth","textPreview":"Auth","textChars":4,"textLines":1,"bbox":[114,328,250,34]}
+{"kind":"textbox","id":"sh/be9wfu5g","slide":7,"text":"cadastro e login por e-mail/senha","textPreview":"cadastro e login por e-mail/senha","textChars":33,"textLines":1,"bbox":[114,384,236,62]}
+{"kind":"shape","id":"sh/vetobeps","slide":7,"bbox":[458,300,300,168]}
+{"kind":"textbox","id":"sh/ad0n29o7","slide":7,"text":"Firestore","textPreview":"Firestore","textChars":9,"textLines":1,"bbox":[482,328,250,34]}
+{"kind":"textbox","id":"sh/xgb6do7y","slide":7,"text":"users, posts, communities e comentários","textPreview":"users, posts, communities e comentários","textChars":39,"textLines":1,"bbox":[482,384,236,62]}
+{"kind":"shape","id":"sh/wf2p4j6d","slide":7,"bbox":[826,300,300,168]}
+{"kind":"textbox","id":"sh/na9o7epw","slide":7,"text":"Hosting","textPreview":"Hosting","textChars":7,"textLines":1,"bbox":[850,328,250,34]}
+{"kind":"textbox","id":"sh/m90ny9ob","slide":7,"text":"publicação web para acesso por link","textPreview":"publicação web para acesso por link","textChars":35,"textLines":1,"bbox":[850,384,236,62]}
+{"kind":"textbox","id":"sh/9cr6947m","slide":7,"text":"A camada AppDatabaseService decide quando usar Firebase e mantém o app preparado para fallback local no desenvolvimento.","textPreview":"A camada AppDatabaseService decide quando usar Firebase e mantém o app preparado para fallback local no desenvolvimento.","textChars":120,"textLines":1,"bbox":[96,520,960,58]}
+{"kind":"notes","id":"nt/wqdokg","slide":7,"text":"Explique que Firebase trouxe cadastro real, banco e hospedagem.\nSe perguntarem sobre segurança, cite as regras do Firestore e o arquivo .env fora do GitHub.\n\n[Sources]\nfirebase_backend_service.dart integra Firebase Auth e Firestore.\nfirebase.json configura Firebase Hosting.\nfirestore.rules define regras do banco."}
+{"kind":"slide","id":"sl/4wurp6","slide":8,"title":"DevStack","textShapes":9}
+{"kind":"textbox","id":"sh/i94ry5w3","slide":8,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/5cfq90fu","slide":8,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/4bm90ve9","slide":8,"text":"O chat com IA foi pensado como apoio ao estudo","textPreview":"O chat com IA foi pensado como apoio ao estudo","textChars":46,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/rex8bad0","slide":8,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/6dor25wf","slide":8,"text":"A IA recebe perguntas, contexto, anexos e devolve respostas organizadas para facilitar entendimento.","textPreview":"A IA recebe perguntas, contexto, anexos e devolve respostas organizadas para facilitar entendimento.","textChars":100,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/tgfadkvq","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/f2xsfudw","slide":8,"bbox":[642,276,10,10]}
+{"kind":"textbox","id":"sh/e1or6pwb","slide":8,"text":"Perguntas livres pelo campo inferior.","textPreview":"Perguntas livres pelo campo inferior.","textChars":37,"textLines":1,"bbox":[670,268,472,42]}
+{"kind":"shape","id":"sh/cbidgfel","slide":8,"bbox":[642,342,10,10]}
+{"kind":"textbox","id":"sh/dcre9kv6","slide":8,"text":"Templates que preenchem o texto, sem enviar automaticamente.","textPreview":"Templates que preenchem o texto, sem enviar automaticamente.","textChars":60,"textLines":1,"bbox":[670,334,472,42]}
+{"kind":"shape","id":"sh/q9gve5wv","slide":8,"bbox":[642,408,10,10]}
+{"kind":"textbox","id":"sh/rapw7adg","slide":8,"text":"Anexos por arquivo e imagem colada com Ctrl+V.","textPreview":"Anexos por arquivo e imagem colada com Ctrl+V.","textChars":46,"textLines":1,"bbox":[670,400,472,42]}
+{"kind":"shape","id":"sh/0fidkzex","slide":8,"bbox":[642,474,10,10]}
+{"kind":"textbox","id":"sh/1gredkvi","slide":8,"text":"Histórico separado por usuário.","textPreview":"Histórico separado por usuário.","textChars":31,"textLines":1,"bbox":[670,466,472,42]}
+{"kind":"image","id":"im/xozm1s7m","slide":8,"name":"","geometry":"roundRect","alt":"Tela de conversa com IA","bbox":[84,254,488,300]}
+{"kind":"notes","id":"nt/4wurp6","slide":8,"text":"Destaque que a IA não substitui o estudo, ela organiza o raciocínio e sugere próximos passos.\nExplique a melhoria feita nos templates: eles preenchem o campo para o usuário detalhar antes de enviar.\n\n[Sources]\nFluxo de IA em lib/main.dart.\nServiços de colagem de imagem em lib/services/clipboard_image_paste_service*.dart."}
+{"kind":"slide","id":"sl/wve1k8","slide":9,"title":"DevStack","textShapes":10}
+{"kind":"textbox","id":"sh/2pcvil4b","slide":9,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/ps3etgnm","slide":9,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/orudkbm1","slide":9,"text":"Os resultados parciais já cobrem o fluxo principal","textPreview":"Os resultados parciais já cobrem o fluxo principal","textChars":50,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/f21wn65k","slide":9,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/u1sve1oz","slide":9,"text":"A versão atual permite demonstrar uma jornada funcional de usuário, dados e IA.","textPreview":"A versão atual permite demonstrar uma jornada funcional de usuário, dados e IA.","textChars":79,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/hojepgnq","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/gnadgbm5","slide":9,"bbox":[106,286,10,10]}
+{"kind":"textbox","id":"sh/zy5wza5o","slide":9,"text":"Cadastro e login conectados ao Firebase Auth.","textPreview":"Cadastro e login conectados ao Firebase Auth.","textChars":45,"textLines":1,"bbox":[134,278,912,42]}
+{"kind":"shape","id":"sh/yxwvq543","slide":9,"bbox":[106,344,10,10]}
+{"kind":"textbox","id":"sh/47mpcz69","slide":9,"text":"Publicação de dúvidas e comunidades salvas no Firestore.","textPreview":"Publicação de dúvidas e comunidades salvas no Firestore.","textChars":56,"textLines":1,"bbox":[134,336,912,42]}
+{"kind":"shape","id":"sh/58vql47u","slide":9,"bbox":[106,402,10,10]}
+{"kind":"textbox","id":"sh/il47apo3","slide":9,"text":"Chat com IA, histórico e anexos.","textPreview":"Chat com IA, histórico e anexos.","textChars":32,"textLines":1,"bbox":[134,394,912,42]}
+{"kind":"shape","id":"sh/36d8jupo","slide":9,"bbox":[106,460,10,10]}
+{"kind":"textbox","id":"sh/gjmp8z6d","slide":9,"text":"Interface revisada para reduzir poluição visual.","textPreview":"Interface revisada para reduzir poluição visual.","textChars":48,"textLines":1,"bbox":[134,452,912,42]}
+{"kind":"shape","id":"sh/hkvqh47y","slide":9,"bbox":[106,518,10,10]}
+{"kind":"textbox","id":"sh/uhk76po7","slide":9,"text":"Deploy web acessível pelo navegador.","textPreview":"Deploy web acessível pelo navegador.","textChars":36,"textLines":1,"bbox":[134,510,912,42]}
+{"kind":"notes","id":"nt/wve1k8","slide":9,"text":"Este slide é o melhor para demonstrar maturidade do projeto.\nSe a banca perguntar o que já está pronto, use estes cinco pontos como resposta.\n\n[Sources]\nFuncionalidades implementadas no código local.\nConfiguração de deploy em firebase.json."}
+{"kind":"slide","id":"sl/j1dcxs","slide":10,"title":"DevStack","textShapes":16}
+{"kind":"textbox","id":"sh/d0fex83y","slide":10,"text":"DevStack","textPreview":"DevStack","textChars":8,"textLines":1,"bbox":[64,42,190,32]}
+{"kind":"textbox","id":"sh/qxov2t4n","slide":10,"text":"AI","textPreview":"AI","textChars":2,"textLines":1,"bbox":[190,42,44,32]}
+{"kind":"textbox","id":"sh/byxwvyl8","slide":10,"text":"Os próximos passos são testar, proteger e evoluir","textPreview":"Os próximos passos são testar, proteger e evoluir","textChars":49,"textLines":1,"bbox":[64,94,850,92]}
+{"kind":"shape","id":"sh/ov6d03mh","slide":10,"bbox":[64,186,94,4]}
+{"kind":"textbox","id":"sh/pwfeto32","slide":10,"text":"A base já está funcional; agora o foco é robustez, segurança e recursos colaborativos.","textPreview":"A base já está funcional; agora o foco é robustez, segurança e recursos colaborativos.","textChars":86,"textLines":1,"bbox":[64,204,780,60]}
+{"kind":"textbox","id":"sh/294vyt4b","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1160,650,60,24]}
+{"kind":"shape","id":"sh/3adwrylw","slide":10,"bbox":[96,268,70,70]}
+{"kind":"textbox","id":"sh/8rqxcnml","slide":10,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[96,281,70,34]}
+{"kind":"textbox","id":"sh/9sze5s36","slide":10,"text":"Testes de uso","textPreview":"Testes de uso","textChars":13,"textLines":1,"bbox":[196,271,360,34]}
+{"kind":"textbox","id":"sh/pozetkja","slide":10,"text":"Validar cadastro, posts, comentários, comunidades e IA em diferentes telas.","textPreview":"Validar cadastro, posts, comentários, comunidades e IA em diferentes telas.","textChars":75,"textLines":1,"bbox":[196,308,820,42]}
+{"kind":"shape","id":"sh/onqx0f2p","slide":10,"bbox":[96,376,70,70]}
+{"kind":"textbox","id":"sh/nmhwra14","slide":10,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[96,389,70,34]}
+{"kind":"textbox","id":"sh/2l8fypkj","slide":10,"text":"Segurança","textPreview":"Segurança","textChars":9,"textLines":1,"bbox":[196,379,360,34]}
+{"kind":"textbox","id":"sh/1kfepkjy","slide":10,"text":"Mover chamadas sensíveis de IA para uma função/back-end e revisar regras.","textPreview":"Mover chamadas sensíveis de IA para uma função/back-end e revisar regras.","textChars":73,"textLines":1,"bbox":[196,416,820,42]}
+{"kind":"shape","id":"sh/0j6xwf2d","slide":10,"bbox":[96,484,70,70]}
+{"kind":"textbox","id":"sh/fixwna18","slide":10,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[96,497,70,34]}
+{"kind":"textbox","id":"sh/ehovu5kn","slide":10,"text":"Colaboração","textPreview":"Colaboração","textChars":11,"textLines":1,"bbox":[196,487,360,34]}
+{"kind":"textbox","id":"sh/lgjy14ji","slide":10,"text":"Melhorar interação entre usuários, respostas e moderação de conteúdo.","textPreview":"Melhorar interação entre usuários, respostas e moderação de conteúdo.","textChars":69,"textLines":1,"bbox":[196,524,820,42]}
+{"kind":"textbox","id":"sh/kfax8z2x","slide":10,"text":"DevStack AI","textPreview":"DevStack AI","textChars":11,"textLines":1,"bbox":[770,604,260,38]}
+{"kind":"textbox","id":"sh/4v2pk7u5","slide":10,"text":"pronto para demonstração","textPreview":"pronto para demonstração","textChars":24,"textLines":1,"bbox":[1028,610,190,28]}
+{"kind":"notes","id":"nt/j1dcxs","slide":10,"text":"Feche mostrando que vocês sabem o que falta e que o projeto tem continuidade.\nEvite terminar só com agradecimento; termine com evolução planejada.\n\n[Sources]\nPróximos passos definidos a partir do estado atual do projeto."}

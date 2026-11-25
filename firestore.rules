@@ -15,6 +15,11 @@ service cloud.firestore {
         && request.resource.data.authorId == request.auth.uid;
     }
 
+    // Comments are public, including collection-group queries used by the feed.
+    match /{path=**}/comments/{commentId} {
+      allow read: if true;
+    }
+
     match /users/{userId} {
       allow create, read, update: if isOwner(userId);
       allow delete: if false;
@@ -24,14 +29,48 @@ service cloud.firestore {
       }
     }
 
+    // Only the avatar is public; users documents remain private.
+    match /publicAvatars/{userId} {
+      allow read: if true;
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['photoBase64'])
+        && request.resource.data.photoBase64 is string
+        && request.resource.data.photoBase64.size() <= 819200;
+      allow delete: if isOwner(userId);
+    }
+
     match /posts/{postId} {
       allow read: if true;
       allow create: if isPostAuthor();
       allow update: if isSignedIn()
         && resource.data.authorId == request.auth.uid
-        && request.resource.data.authorId == resource.data.authorId;
+        && request.resource.data.authorId == resource.data.authorId
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['title', 'description', 'code', 'isResolved', 'updatedAt'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title'])
+          || (request.resource.data.title is string
+            && request.resource.data.title.size() >= 6
+            && request.resource.data.title.size() <= 160))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['description'])
+          || (request.resource.data.description is string
+            && request.resource.data.description.size() >= 12
+            && request.resource.data.description.size() <= 10000))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['code'])
+          || (request.resource.data.code is string
+            && request.resource.data.code.size() <= 20000))
+        && (!request.resource.data.keys().hasAny(['isResolved'])
+          || request.resource.data.isResolved is bool);
       allow delete: if isSignedIn()
         && resource.data.authorId == request.auth.uid;
+
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, update: if isOwner(userId)
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && request.resource.data.keys().hasOnly(['userId'])
+          && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId);
+      }
 
       match /comments/{commentId} {
         allow read: if true;

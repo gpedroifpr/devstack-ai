@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/post_update.dart';
 
 import 'firebase_backend_service.dart';
 import 'local_database_service.dart';
@@ -10,6 +11,24 @@ class AppDatabaseService {
   final FirebaseBackendService _firebaseService = FirebaseBackendService();
 
   bool get isUsingFirebase => FirebaseBackendService.isInitialized;
+
+  Future<void> syncPublicAvatar() async {
+    if (isUsingFirebase) await _firebaseService.syncPublicAvatar();
+  }
+
+  Stream<String?> watchAuthorPhoto(String userId) {
+    if (isUsingFirebase) return _firebaseService.watchAuthorPhoto(userId);
+    return _localService.loadAuthorPhoto(userId).asStream();
+  }
+
+  Future<void> sendPasswordReset(String email) async {
+    if (!isUsingFirebase) {
+      throw StateError(
+        'A recuperação de senha precisa de conexão com o Firebase.',
+      );
+    }
+    await _firebaseService.sendPasswordReset(email);
+  }
 
   String get backendStatusMessage {
     if (isUsingFirebase) return 'Cadastro conectado ao Firebase Auth.';
@@ -68,6 +87,14 @@ class AppDatabaseService {
     return _localService.signIn(email: email, password: password);
   }
 
+  Future<AuthResult> signInWithGoogle() async {
+    if (!kIsWeb) {
+      return AuthResult.failure('Use o site para entrar com Google.');
+    }
+    if (!isUsingFirebase) return AuthResult.failure(_firebaseMissingMessage());
+    return _firebaseService.signInWithGoogle();
+  }
+
   Future<void> signOut() async {
     if (isUsingFirebase) {
       await _firebaseService.signOut();
@@ -77,23 +104,35 @@ class AppDatabaseService {
     await _localService.signOut();
   }
 
+  Future<void> updateProfilePhoto(String photoBase64) async {
+    if (isUsingFirebase) {
+      await _firebaseService.updateProfilePhoto(photoBase64);
+      return;
+    }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    final user = await _localService.loadCurrentUser();
+    if (user == null) throw StateError('Entre novamente para trocar sua foto.');
+    await _localService.updateCurrentUserProfile(
+      name: user.name,
+      username: user.username,
+      photoBase64: photoBase64,
+    );
+  }
+
   Future<LocalAuthUser?> updateCurrentUserProfile({
     required String name,
     required String username,
     String? photoBase64,
   }) async {
     if (isUsingFirebase) {
-      try {
-        return await _firebaseService.updateCurrentUserProfile(
-          name: name,
-          username: username,
-          photoBase64: photoBase64,
-        );
-      } catch (_) {
-        // Cai para o perfil local quando o Firestore estiver sem permissão.
-      }
+      return _firebaseService.updateCurrentUserProfile(
+        name: name,
+        username: username,
+        photoBase64: photoBase64,
+      );
     }
 
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
     return _localService.updateCurrentUserProfile(
       name: name,
       username: username,
@@ -105,16 +144,25 @@ class AppDatabaseService {
     return _localService.loadLikedPostIds();
   }
 
-  Future<Set<String>> loadFavoritedPostIds() {
-    return _localService.loadFavoritedPostIds();
+  Future<Set<String>> loadFavoritedPostIds(String userId) {
+    if (isUsingFirebase) return _firebaseService.loadFavoritedPostIds();
+    return _localService.loadFavoritedPostIds(userId);
   }
 
   Future<void> savePostLike(String postId, bool isLiked) {
     return _localService.savePostLike(postId, isLiked);
   }
 
-  Future<void> savePostFavorite(String postId, bool isFavorited) {
-    return _localService.savePostFavorite(postId, isFavorited);
+  Future<void> savePostFavorite(
+    String userId,
+    String postId,
+    bool isFavorited,
+  ) {
+    if (isUsingFirebase) {
+      return _firebaseService.savePostFavorite(postId, isFavorited);
+    }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    return _localService.savePostFavorite(userId, postId, isFavorited);
   }
 
   Future<List<String>> loadSearchHistory() {
@@ -151,15 +199,18 @@ class AppDatabaseService {
   }
 
   Future<void> saveUserPost(Map<String, dynamic> post) async {
-    await _localService.saveUserPost(post);
-
     if (isUsingFirebase) {
-      try {
-        await _firebaseService.saveUserPost(post);
-      } catch (_) {
-        // Mantem o protótipo funcionando mesmo se o Firestore ainda estiver sem regras.
-      }
+      await _firebaseService.saveUserPost(post);
+      return;
     }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    await _localService.saveUserPost(post);
+  }
+
+  Future<void> updateUserPost(String userId, String postId, PostUpdate update) {
+    if (isUsingFirebase) return _firebaseService.updateUserPost(postId, update);
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    return _localService.updateUserPost(userId, postId, update);
   }
 
   Future<List<Map<String, dynamic>>> loadCustomCommunities() async {
@@ -189,57 +240,61 @@ class AppDatabaseService {
   }
 
   Future<void> saveCustomCommunity(Map<String, dynamic> community) async {
-    await _localService.saveCustomCommunity(community);
-
     if (isUsingFirebase) {
-      try {
-        await _firebaseService.saveCustomCommunity(community);
-      } catch (_) {
-        // A comunidade continua salva localmente se o Firestore negar escrita.
-      }
+      await _firebaseService.saveCustomCommunity(community);
+      return;
     }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    await _localService.saveCustomCommunity(community);
+    await _localService.setCommunityFollowed(
+      community['ownerId'].toString(),
+      community['id'].toString(),
+      true,
+    );
+  }
+
+  Future<Set<String>> loadFollowedCommunityIds(String userId) {
+    if (isUsingFirebase) return _firebaseService.loadFollowedCommunityIds();
+    return _localService.loadFollowedCommunityIds(userId);
+  }
+
+  Future<void> setCommunityFollowed(
+    String userId,
+    String communityId,
+    bool followed,
+  ) {
+    if (isUsingFirebase) {
+      return _firebaseService.setCommunityFollowed(communityId, followed);
+    }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    return _localService.setCommunityFollowed(userId, communityId, followed);
   }
 
   Future<List<Map<String, dynamic>>> loadAIChatHistory(String userId) async {
-    final localMessages = await _localService.loadAIChatHistory(userId);
-
-    if (!isUsingFirebase) {
-      return localMessages;
-    }
-
-    try {
-      final cloudMessages = await _firebaseService.loadAIChatHistory(userId);
-      return cloudMessages.isNotEmpty ? cloudMessages : localMessages;
-    } catch (_) {
-      return localMessages;
-    }
+    if (isUsingFirebase) return _firebaseService.loadAIChatHistory(userId);
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    return _localService.loadAIChatHistory(userId);
   }
 
   Future<void> saveAIChatHistory(
     String userId,
     List<Map<String, dynamic>> messages,
   ) async {
-    await _localService.saveAIChatHistory(userId, messages);
-
     if (isUsingFirebase) {
-      try {
-        await _firebaseService.saveAIChatHistory(userId, messages);
-      } catch (_) {
-        // O chat continua salvo localmente se o Firestore negar a escrita.
-      }
+      await _firebaseService.saveAIChatHistory(userId, messages);
+      return;
     }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    await _localService.saveAIChatHistory(userId, messages);
   }
 
   Future<void> clearAIChatHistory(String userId) async {
-    await _localService.clearAIChatHistory(userId);
-
     if (isUsingFirebase) {
-      try {
-        await _firebaseService.clearAIChatHistory(userId);
-      } catch (_) {
-        // Mantem o fluxo local funcionando.
-      }
+      await _firebaseService.clearAIChatHistory(userId);
+      return;
     }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    await _localService.clearAIChatHistory(userId);
   }
 
   Future<List<Map<String, dynamic>>> loadPostComments(String userId) async {
@@ -272,15 +327,12 @@ class AppDatabaseService {
     String userId,
     Map<String, dynamic> comment,
   ) async {
-    await _localService.savePostComment(userId, comment);
-
     if (isUsingFirebase) {
-      try {
-        await _firebaseService.savePostComment(comment);
-      } catch (_) {
-        // O comentário fica salvo localmente se o Firestore negar a escrita.
-      }
+      await _firebaseService.savePostComment(comment);
+      return;
     }
+    if (kReleaseMode) throw StateError(_firebaseMissingMessage());
+    await _localService.savePostComment(userId, comment);
   }
 
   String _firebaseMissingMessage() {
